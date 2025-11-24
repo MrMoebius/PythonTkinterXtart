@@ -71,7 +71,16 @@ class MainWindow:
         x = (self.root.winfo_screenwidth() // 2) - 600
         y = (self.root.winfo_screenheight() // 2) - 400
         self.root.geometry(f"1200x800+{x}+{y}")
+        self.root.bind("<F1>", lambda e: HelpWindow(self.root).show())
 
+        # ---------------------------------------------------------
+        # Atajos de teclado (Dashboard y Logout)
+        # ---------------------------------------------------------
+        self.root.bind("<Control-d>", lambda e: self.show_dashboard())
+        self.root.bind("<Control-D>", lambda e: self.show_dashboard())
+        self.root.bind("<Control-q>", lambda e: self._logout())
+        self.root.bind("<Control-Q>", lambda e: self._logout())
+        
         # ---------------------------------------------------------
         # Crear contenedor raíz (SIEMPRE NUEVO)
         # ---------------------------------------------------------
