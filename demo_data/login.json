@@ -1,0 +1,25 @@
+{
+  "admin": {
+    "id": 1,
+    "rol": "ADMIN",
+    "username": "Admin General",
+    "email": "admin@xtart.com",
+    "token": "token_admin"
+  },
+
+  "empleado1": {
+    "id": 2,
+    "rol": "EMPLEADO",
+    "username": "Laura Empleada",
+    "email": "laura@xtart.com",
+    "token": "token_empleado1"
+  },
+
+  "cliente1": {
+    "id": 3,
+    "rol": "CLIENTE",
+    "username": "Carlos Cliente",
+    "email": "carlos@correo.com",
+    "token": "token_cliente1"
+  }
+}
