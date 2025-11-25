@@ -4,7 +4,7 @@ Ventana de gestión de productos
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from src.ui.entities.base_crud_window import BaseCRUDWindow
 from src.components.validated_entry import ValidatedEntry
@@ -22,12 +22,135 @@ class ProductosWindow(BaseCRUDWindow):
             {"name": "stock", "width": 80, "anchor": "center"},
         ]
 
+        # Filtros iniciales (se actualizarán después de cargar datos)
         filters = [
-            {"name": "nombre", "type": "text", "label": "Nombre"},
-            {"name": "precio", "type": "number", "label": "Precio"},
+            {"name": "nombre", "type": "select", "label": "Nombre", "options": []},
+            {"name": "precio_desde", "type": "select", "label": "Precio Desde", "options": []},
+            {"name": "precio_hasta", "type": "select", "label": "Precio Hasta", "options": []},
         ]
 
         super().__init__(parent, api, "productos", columns, filters, client_mode=False)
+        
+        # Cargar datos y actualizar opciones de filtros
+        self._load_data()
+        self._update_filter_options()
+
+    # =====================================================================
+    # ACTUALIZAR OPCIONES DE FILTROS
+    # =====================================================================
+    SIN_FILTRO = "(Sin filtro)"
+    
+    def _update_filter_options(self):
+        """Actualiza las opciones de los filtros select con datos dinámicos."""
+        if not hasattr(self, 'filter_panel'):
+            return
+
+        # Usar datos ya cargados si están disponibles, sino cargar
+        productos = self.data if self.data else []
+        if not productos:
+            result = self.api.get_all("productos")
+            if not result.get("success"):
+                return
+            productos = result.get("data", [])
+
+        # 1. OPCIONES PARA FILTRO "nombre"
+        nombres = sorted({p.get("nombre", "") for p in productos if p.get("nombre")})
+        nombre_widget = self.filter_panel.filter_widgets.get("nombre")
+        if nombre_widget and isinstance(nombre_widget, ttk.Combobox):
+            nombre_widget["values"] = [self.SIN_FILTRO] + nombres
+            nombre_widget.current(0)
+
+        # 2. OPCIONES PARA FILTROS "precio_desde" y "precio_hasta"
+        precios = []
+        for p in productos:
+            precio = p.get("precio")
+            if precio is not None:
+                try:
+                    precio_num = float(precio)
+                    precios.append(precio_num)
+                except (ValueError, TypeError):
+                    continue
+
+        if precios:
+            precio_max = int(max(precios))
+            
+            # Generar opciones: 0, 500, 1000, 1500, ... hasta el máximo
+            opciones_precio = [self.SIN_FILTRO]
+            valor = 0
+            while valor <= precio_max:
+                opciones_precio.append(str(valor))
+                valor += 500
+            
+            # Asegurar que el máximo esté incluido
+            if str(precio_max) not in opciones_precio:
+                opciones_precio.append(str(precio_max))
+
+            # Aplicar a ambos combobox
+            for filtro_name in ["precio_desde", "precio_hasta"]:
+                precio_widget = self.filter_panel.filter_widgets.get(filtro_name)
+                if precio_widget and isinstance(precio_widget, ttk.Combobox):
+                    precio_widget["values"] = opciones_precio
+                    precio_widget.current(0)
+
+    # =====================================================================
+    # SOBRESCRIBIR _on_filter PARA MANEJAR LOS NUEVOS FILTROS
+    # =====================================================================
+    def _on_filter(self, filter_values: Dict):
+        """Maneja el filtrado con los nuevos filtros de productos."""
+        params = {}
+
+        # Filtro por nombre (exacto)
+        nombre = filter_values.get("nombre")
+        if nombre and nombre != self.SIN_FILTRO:
+            params["nombre"] = nombre
+
+        # Filtros por precio (rango)
+        precio_desde = filter_values.get("precio_desde")
+        precio_hasta = filter_values.get("precio_hasta")
+
+        if precio_desde and precio_desde != self.SIN_FILTRO:
+            try:
+                params["precio_min"] = float(precio_desde)
+            except (ValueError, TypeError):
+                pass
+
+        if precio_hasta and precio_hasta != self.SIN_FILTRO:
+            try:
+                params["precio_max"] = float(precio_hasta)
+            except (ValueError, TypeError):
+                pass
+
+        # Si no hay filtros, recargar todo
+        if not params:
+            self._load_data()
+            return
+
+        # Aplicar filtros
+        result = self.api.get_all("productos", params=params)
+
+        if not result.get("success"):
+            messagebox.showerror("Error", "No se pudo aplicar filtros.")
+            return
+
+        self.data = result.get("data", [])
+        self.table.set_data(self.data)
+
+    # =====================================================================
+    # SOBRESCRIBIR _load_data PARA ACTUALIZAR FILTROS DESPUÉS
+    # =====================================================================
+    def _load_data(self):
+        """Carga los datos y actualiza las opciones de filtros."""
+        result = self.api.get_all("productos")
+
+        if not result.get("success"):
+            messagebox.showerror("Error", f"Error al cargar datos: {result.get('error')}")
+            return
+
+        self.data = result.get("data", [])
+        self.table.set_data(self.data)
+        
+        # Actualizar opciones de filtros después de cargar
+        self._update_filter_options()
 
     # =====================================================================
     # CAMPOS DEL FORMULARIO

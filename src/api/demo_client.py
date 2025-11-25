@@ -116,10 +116,55 @@ class DemoClient:
 
         for row in data:
             ok = True
+            
             for k, v in params.items():
-
+                # Manejo especial para filtros de precio (rango)
+                if k == "precio_min":
+                    precio = row.get("precio")
+                    if precio is None:
+                        ok = False
+                        break
+                    try:
+                        precio_num = float(precio)
+                        precio_min = float(v)
+                        if precio_num < precio_min:
+                            ok = False
+                            break
+                    except (ValueError, TypeError):
+                        ok = False
+                        break
+                    continue
+                
+                if k == "precio_max":
+                    precio = row.get("precio")
+                    if precio is None:
+                        ok = False
+                        break
+                    try:
+                        precio_num = float(precio)
+                        precio_max = float(v)
+                        if precio_num > precio_max:
+                            ok = False
+                            break
+                    except (ValueError, TypeError):
+                        ok = False
+                        break
+                    continue
+                
+                # Filtro por nombre (exacto)
+                if k == "nombre":
+                    row_val = row.get(k)
+                    if row_val is None:
+                        ok = False
+                        break
+                    # Comparación exacta (case-sensitive)
+                    if str(row_val) != str(v):
+                        ok = False
+                        break
+                    continue
+                
+                # Filtros genéricos (búsqueda parcial)
                 row_val = row.get(k)
-
                 if row_val is None:
                     ok = False
                     break

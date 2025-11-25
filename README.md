@@ -1,6 +1,6 @@
 # CRM XTART - Cliente de Escritorio
 
-Cliente de escritorio en Python con Tkinter para gestionar el sistema CRM XTART. Esta aplicación proporciona una interfaz gráfica completa para interactuar con el backend Java REST API.
+Cliente de escritorio en Python con CustomTkinter y ttkbootstrap para gestionar el sistema CRM XTART. Esta aplicación proporciona una interfaz gráfica moderna y completa para interactuar con el backend Java REST API, con soporte para modo demo con datos locales.
 
 ## 📋 Tabla de Contenidos
 
@@ -17,21 +17,29 @@ Cliente de escritorio en Python con Tkinter para gestionar el sistema CRM XTART.
 
 ## ✨ Características
 
-- **Interfaz Moderna**: Tema claro y fácilmente extensible a temas oscuros
+- **Interfaz Moderna**: Construida con CustomTkinter y ttkbootstrap, tema oscuro por defecto
+- **Modo Demo**: Funciona sin backend usando datos JSON locales (`--demo`)
 - **CRUD Completo**: Gestión completa de todas las entidades del sistema
-- **Sistema de Roles**: Diferentes interfaces según el tipo de usuario (Empleado/Cliente)
+- **Sistema de Roles**: Diferentes interfaces según el tipo de usuario (Admin/Empleado/Cliente)
 - **Validación en Tiempo Real**: Validación visual de campos (email, teléfono, fecha, etc.)
 - **Filtros Avanzados**: Búsqueda y filtrado de registros
 - **Paginación**: Navegación eficiente en grandes volúmenes de datos
-- **Informes Gráficos**: Visualización de datos con gráficos interactivos
-- **Ayuda Contextual**: Sistema de ayuda integrado
+- **Informes Gráficos**: Visualización de datos con gráficos interactivos (barras, líneas, circular)
+- **Exportación de Informes**: Exportar gráficos a PDF, PNG e Email
+- **Widgets Personalizados**: DatePicker y ScrollableFrame personalizados
+- **Ayuda Contextual**: Sistema de ayuda integrado con HTML
 - **Navegación por Teclado**: Atajos de teclado para operaciones rápidas
 
 ## 🔧 Requisitos
 
 - Python 3.8 o superior
-- Backend Java REST API ejecutándose en `http://localhost:8080/democrudapi`
+- Backend Java REST API ejecutándose en `http://localhost:8080/democrudapi` (solo para modo real)
 - Dependencias Python (ver `requirements.txt`)
+  - `customtkinter` - Interfaz gráfica moderna
+  - `ttkbootstrap` - Temas y estilos adicionales
+  - `requests` - Cliente HTTP para API REST
+  - `matplotlib` - Generación de gráficos
+  - `Pillow` - Procesamiento de imágenes
 
 ## 📦 Instalación
 
@@ -42,14 +50,21 @@ Cliente de escritorio en Python con Tkinter para gestionar el sistema CRM XTART.
 pip install -r requirements.txt
 ```
 
-3. **Asegurarse de que el backend Java está ejecutándose**:
+3. **Ejecutar la aplicación**:
+
+   **Modo Real (requiere backend Java)**:
+   ```bash
+   python main.py
+   ```
    - El backend debe estar disponible en `http://localhost:8080/democrudapi`
    - Verificar que los endpoints REST están accesibles
 
-4. **Ejecutar la aplicación**:
-```bash
-python main.py
-```
+   **Modo Demo (sin backend, usa datos locales)**:
+   ```bash
+   python main.py --demo
+   ```
+   - Funciona sin backend usando archivos JSON en `demo_data/`
+   - Ideal para pruebas y desarrollo
 
 ## 📁 Estructura del Proyecto
 
@@ -58,13 +73,30 @@ tkinter/
 ├── main.py                          # Punto de entrada principal
 ├── requirements.txt                 # Dependencias del proyecto
 ├── README.md                        # Este archivo
+├── CONFIGURACION.md                 # Configuración del sistema
+│
+├── demo_data/                       # Datos JSON para modo demo
+│   ├── clientes.json
+│   ├── empleados.json
+│   ├── factura_productos.json
+│   ├── facturas.json
+│   ├── login.json
+│   ├── pagos.json
+│   ├── presupuestos.json
+│   ├── productos.json
+│   └── roles_empleado.json
+│
+├── docs/                            # Documentación de ayuda
+│   ├── ayuda.html
+│   └── Style.css
 │
 ├── src/
 │   ├── __init__.py
 │   │
 │   ├── api/                         # Módulo de comunicación REST
 │   │   ├── __init__.py
-│   │   └── rest_client.py          # Cliente REST para backend
+│   │   ├── rest_client.py          # Cliente REST para backend Java
+│   │   └── demo_client.py          # Cliente demo con datos locales
 │   │
 │   ├── ui/                          # Interfaces de usuario
 │   │   ├── __init__.py
@@ -72,30 +104,49 @@ tkinter/
 │   │   ├── main_window.py          # Ventana principal con menú
 │   │   ├── dashboard.py            # Panel de resumen
 │   │   ├── reports_window.py       # Informes y gráficos
-│   │   ├── help_window.py          # Ventana de ayuda
+│   │   ├── help_window.py          # Ventana de ayuda HTML
 │   │   │
-│   │   └── entities/                # Gestión de entidades
-│   │       ├── __init__.py
-│   │       ├── base_crud_window.py  # Ventana base CRUD
-│   │       ├── clientes_window.py   # Gestión de clientes
-│   │       ├── empleados_window.py  # Gestión de empleados
-│   │       ├── productos_window.py  # Gestión de productos
-│   │       ├── presupuestos_window.py # Gestión de presupuestos
-│   │       ├── facturas_window.py   # Gestión de facturas
-│   │       └── pagos_window.py      # Gestión de pagos
+│   │   ├── entities/                # Gestión de entidades
+│   │   │   ├── __init__.py
+│   │   │   ├── base_crud_window.py  # Ventana base CRUD
+│   │   │   ├── clientes_window.py   # Gestión de clientes
+│   │   │   ├── empleados_window.py  # Gestión de empleados
+│   │   │   ├── productos_window.py  # Gestión de productos
+│   │   │   ├── presupuestos_window.py # Gestión de presupuestos
+│   │   │   ├── facturas_window.py   # Gestión de facturas
+│   │   │   └── pagos_window.py      # Gestión de pagos
+│   │   │
+│   │   ├── widgets/                 # Widgets personalizados
+│   │   │   ├── ctk_datepicker.py    # Selector de fechas
+│   │   │   └── ctk_scrollable_frame.py # Frame con scroll
+│   │   │
+│   │   └── plantillasLogin/         # Plantillas de login
+│   │       └── LoginPage.py
 │   │
 │   ├── components/                  # Componentes reutilizables
 │   │   ├── __init__.py
-│   │   ├── validated_entry.py     # Campo de entrada con validación
+│   │   ├── validated_entry.py      # Campo de entrada con validación
 │   │   ├── data_table.py           # Tabla con paginación
 │   │   └── filter_panel.py         # Panel de filtros
 │   │
-│   └── utils/                       # Utilidades
-│       ├── __init__.py
-│       └── styles.py               # Configuración de estilos
-│
-└── assets/                          # Recursos (iconos, imágenes)
-    └── (opcional)
+│   ├── reports/                     # Sistema de informes
+│   │   ├── __init__.py
+│   │   ├── chart_factory.py         # Factory para crear gráficos
+│   │   ├── graphic_panel.py         # Panel de visualización
+│   │   ├── report_loader.py         # Carga de datos para informes
+│   │   ├── zoom_manager.py         # Gestión de zoom en gráficos
+│   │   │
+│   │   └── exporters/               # Exportadores de informes
+│   │       ├── pdf_exporter.py      # Exportar a PDF
+│   │       ├── image_exporter.py    # Exportar a PNG/JPG
+│   │       └── email_exporter.py    # Enviar por email
+│   │
+│   ├── utils/                       # Utilidades
+│   │   ├── __init__.py
+│   │   └── styles.py               # Configuración de estilos
+│   │
+│   └── Images/                      # Recursos de imagen
+│       └── XtartLogo.png
 ```
 
 ## 🚀 Uso
@@ -121,9 +172,9 @@ tkinter/
 
 ## 👥 Roles y Permisos
 
-### Empleado
+### Admin
 
-Los empleados tienen acceso completo al sistema:
+Los administradores tienen acceso completo al sistema:
 
 - ✅ **Clientes**: Crear, editar, eliminar y consultar todos los clientes
 - ✅ **Empleados**: Gestión completa de empleados y roles
@@ -131,7 +182,19 @@ Los empleados tienen acceso completo al sistema:
 - ✅ **Presupuestos**: Crear, editar y gestionar presupuestos
 - ✅ **Facturas**: Gestión completa de facturas
 - ✅ **Pagos**: Registro y seguimiento de pagos
-- ✅ **Informes**: Acceso a informes y gráficos
+- ✅ **Informes**: Acceso a informes y gráficos con exportación
+
+### Empleado
+
+Los empleados tienen acceso similar a Admin:
+
+- ✅ **Clientes**: Crear, editar, eliminar y consultar todos los clientes
+- ✅ **Empleados**: Gestión completa de empleados y roles
+- ✅ **Productos**: Gestión del catálogo de productos
+- ✅ **Presupuestos**: Crear, editar y gestionar presupuestos
+- ✅ **Facturas**: Gestión completa de facturas
+- ✅ **Pagos**: Registro y seguimiento de pagos
+- ✅ **Informes**: Acceso a informes y gráficos con exportación
 
 ### Cliente
 
@@ -168,6 +231,13 @@ Todas las entidades siguen el mismo patrón:
 6. **facturas** - Facturas
 7. **factura_productos** - Productos asociados a facturas
 8. **pagos** - Pagos realizados
+
+### Modo Demo
+
+El modo demo (`--demo`) permite usar la aplicación sin backend:
+- Lee datos desde archivos JSON en `demo_data/`
+- Compatible con la misma interfaz que el modo real
+- Útil para desarrollo, pruebas y demostraciones
 
 ### Endpoints Específicos
 
@@ -358,7 +428,11 @@ Los informes se actualizan automáticamente con los datos del sistema:
 - **Estado de Presupuestos**: Gráfico circular
 - **Facturación Mensual**: Gráfico de líneas
 
-Hacer clic en "Actualizar" para refrescar los datos.
+**Funcionalidades de Informes**:
+- Hacer clic en "Actualizar" para refrescar los datos
+- Zoom in/out en los gráficos
+- Exportar a PDF, PNG o enviar por email
+- Navegación por pestañas entre diferentes informes
 
 ### Ayuda
 
@@ -369,9 +443,10 @@ Hacer clic en "Actualizar" para refrescar los datos.
 
 ### Error: "No se pudo conectar con el servidor"
 
-- Verificar que el backend Java está ejecutándose
+- Verificar que el backend Java está ejecutándose (solo modo real)
 - Verificar que la URL en `src/api/rest_client.py` es correcta
 - Verificar la conexión de red
+- **Solución alternativa**: Usar modo demo con `python main.py --demo`
 
 ### Error: "Error de Autenticación"
 
@@ -386,23 +461,29 @@ Hacer clic en "Actualizar" para refrescar los datos.
 
 ## 📝 Notas
 
-- El sistema está diseñado para trabajar con el backend Java REST API
-- Todos los datos se almacenan en el backend, no localmente
+- El sistema está diseñado para trabajar con el backend Java REST API (modo real)
+- Modo demo disponible para trabajar sin backend usando archivos JSON locales
+- En modo real, todos los datos se almacenan en el backend, no localmente
+- En modo demo, los datos se leen desde `demo_data/` pero no se guardan cambios
 - La sesión se mantiene mientras la aplicación esté abierta
-- Los cambios se guardan inmediatamente en el backend
+- Los cambios se guardan inmediatamente en el backend (modo real)
+- La interfaz usa CustomTkinter con tema oscuro por defecto
 
 ## 🔄 Actualizaciones Futuras
 
 Posibles mejoras:
 
-- [ ] Tema oscuro
-- [ ] Exportación de datos (PDF, Excel)
+- [x] Tema oscuro (implementado con CustomTkinter)
+- [x] Exportación de datos (PDF, PNG, Email implementado)
+- [x] Modo demo sin backend (implementado)
+- [ ] Exportación a Excel
 - [ ] Búsqueda avanzada con múltiples criterios
 - [ ] Notificaciones en tiempo real
 - [ ] Historial de cambios
-- [ ] Autenticación con tokens JWT
+- [x] Autenticación con tokens JWT (implementado)
 - [ ] Caché local para mejor rendimiento
 - [ ] Soporte para múltiples idiomas
+- [ ] Tema claro opcional
 
 ## 📄 Licencia
 
