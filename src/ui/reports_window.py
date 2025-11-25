@@ -1,202 +1,308 @@
-"""
-Ventana de informes y gráficos
-"""
+import customtkinter as ctk
+from tkinter import filedialog, messagebox
 
-import tkinter as tk
-from tkinter import ttk
+from src.ui.widgets.ctk_datepicker import CTkDatePicker
+from src.ui.widgets.ctk_scrollable_frame import CTkScrollableFrame
 
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from src.reports.report_loader import ReportLoader
+from src.reports.chart_factory import ChartFactory
+from src.reports.graphic_panel import GraphicPanel
+from src.reports.zoom_manager import ZoomManager
+
+from src.reports.exporters.pdf_exporter import PDFExporter
+from src.reports.exporters.image_exporter import ImageExporter
 
 
-class ReportsWindow(ttk.Frame):
-    """Ventana para mostrar informes y gráficos"""
+class ReportsWindow(ctk.CTkFrame):
 
     def __init__(self, parent, api):
-        super().__init__(parent)
+        super().__init__(parent, fg_color="transparent")
+
         self.api = api
-        self._create_widgets()
-        self._load_reports()
+        self.loader = ReportLoader(api)
+
+        self.current_figure = None
+        self.active_tab = None
+        self.canvas_widget = None
+
+        # Zoom Manager
+        self.zoom = ZoomManager()
+
+        self._build_ui()
+
+        # Cargar una pestaña inicial por defecto
+        self._switch_tab("Ventas por empleado")
 
     # ================================================================
-    # WIDGETS PRINCIPALES
+    # UI PRINCIPAL
     # ================================================================
-    def _create_widgets(self):
+    def _build_ui(self):
 
-        # Título
-        title_frame = ttk.Frame(self)
-        title_frame.pack(fill=tk.X, pady=10)
+        # -------------------------
+        # TITULO
+        # -------------------------
+        title_frame = ctk.CTkFrame(self, fg_color="transparent")
+        title_frame.pack(fill="x", pady=4)
 
-        ttk.Label(
+        ctk.CTkLabel(
             title_frame,
             text="Informes y Gráficos",
-            font=("Arial", 18, "bold")
-        ).pack(side=tk.LEFT)
+            font=ctk.CTkFont(size=22, weight="bold")
+        ).pack(side="left")
 
-        ttk.Button(
+        ctk.CTkButton(
             title_frame,
+            text="Generar informe personalizado ▼",
+            command=self._open_popover,
+            corner_radius=6
+        ).pack(side="left", padx=10)
+
+        # -------------------------
+        # PERIODO DE TIEMPO
+        # -------------------------
+        period_frame = ctk.CTkFrame(self, fg_color="transparent")
+        period_frame.pack(fill="x", pady=6)
+
+        ctk.CTkLabel(
+            period_frame,
+            text="Periodo:",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(side="left", padx=5)
+
+        self.fecha_desde = CTkDatePicker(period_frame)
+        self.fecha_desde.pack(side="left", padx=5)
+
+        self.fecha_hasta = CTkDatePicker(period_frame)
+        self.fecha_hasta.pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            period_frame,
+            text="Generar",
+            command=self._generate_from_period
+        ).pack(side="left", padx=10)
+
+        # ================================================================
+        # SCROLLABLE GRAPH AREA
+        # ================================================================
+        self.scroll_area = CTkScrollableFrame(self)
+        self.scroll_area.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # ================================================================
+        # FOOTER FIJO (PDF, PNG, Refresh, Zoom)
+        # ================================================================
+        footer = ctk.CTkFrame(self, fg_color="transparent")
+        footer.pack(fill="x", side="bottom", pady=4)
+        footer.pack_propagate(False)
+
+        # IZQUIERDA
+        ctk.CTkButton(
+            footer,
+            text="Exportar PDF",
+            width=130,
+            command=self._export_pdf
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            footer,
+            text="Exportar PNG",
+            width=130,
+            command=self._export_png
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            footer,
             text="Actualizar",
-            command=self._load_reports
-        ).pack(side=tk.RIGHT, padx=5)
+            width=130,
+            command=lambda: self._switch_tab(self.active_tab)
+        ).pack(side="left", padx=5)
 
-        # Notebook
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+        # DERECHA
+        ctk.CTkButton(
+            footer, text="-", width=40,
+            command=self._zoom_out
+        ).pack(side="right", padx=5)
 
-        self.ventas_frame = ttk.Frame(self.notebook)
-        self.presupuestos_frame = ttk.Frame(self.notebook)
-        self.facturacion_frame = ttk.Frame(self.notebook)
-
-        self.notebook.add(self.ventas_frame, text="Ventas por Empleado")
-        self.notebook.add(self.presupuestos_frame, text="Estado Presupuestos")
-        self.notebook.add(self.facturacion_frame, text="Facturación Mensual")
-
-    # ================================================================
-    # CARGA DE INFORMES
-    # ================================================================
-    def _load_reports(self):
-        self._load_ventas_por_empleado()
-        self._load_estado_presupuestos()
-        self._load_facturacion_mensual()
+        ctk.CTkButton(
+            footer, text="+", width=40,
+            command=self._zoom_in
+        ).pack(side="right")
 
     # ================================================================
-    # INFORME 1 — VENTAS POR EMPLEADO
+    # POPOVER PERSONALIZADO
     # ================================================================
-    def _load_ventas_por_empleado(self):
+    def _open_popover(self):
+        if hasattr(self, "popover") and self.popover.winfo_exists():
+            self.popover.destroy()
 
-        for w in self.ventas_frame.winfo_children():
-            w.destroy()
+        self.popover = ctk.CTkToplevel(self)
+        self.popover.overrideredirect(True)
+        self.popover.configure(fg_color="#232323")
 
-        fact = self.api.get_facturas()
-        emp = self.api.get_empleados()
+        options = [
+            "Ventas por empleado",
+            "Estado presupuestos",
+            "Facturación mensual",
+            "Ventas por producto",
+            "Ratio conversión"
+        ]
 
-        if not (fact.get("success") and emp.get("success")):
-            ttk.Label(self.ventas_frame, text="Error al cargar datos").pack(pady=20)
+        for name in options:
+            ctk.CTkButton(
+                self.popover,
+                text=name,
+                fg_color="#353535",
+                hover_color="#454545",
+                command=lambda n=name: (self.popover.destroy(), self._switch_tab(n))
+            ).pack(fill="x", padx=8, pady=4)
+
+        x = self.winfo_rootx() + 200
+        y = self.winfo_rooty() + 40
+        self.popover.geometry(f"220x200+{x}+{y}")
+
+    # ================================================================
+    # CAMBIO DE TAB
+    # ================================================================
+    def _switch_tab(self, name, desde=None, hasta=None):
+        self.active_tab = name
+    # Si no se pasan fechas, usar las del datepicker
+        if not desde: 
+            desde = self.fecha_desde.get()
+        if not hasta:
+            hasta = self.fecha_hasta.get()
+        # Llamar informe adecuado
+        loader = self.loader
+        # Selección del informe usando fechas
+        if name == "Ventas por empleado":
+            data = loader.ventas_por_empleado(desde, hasta)
+        elif name == "Estado presupuestos":
+            data = loader.estados_presupuestos(desde, hasta)
+        elif name == "Facturación mensual":
+            data = loader.facturacion_mensual(desde, hasta)
+        elif name == "Ventas por producto":
+            data = loader.ventas_por_producto(desde, hasta)
+        elif name == "Ratio conversión":
+            data = loader.ratio_conversion(desde, hasta)
+        else:
+            data = None
+        # Renderizar gráfico
+        self._render_report(data, name)
+
+    # ================================================================
+    # GENERAR POR PERIODO
+    # ================================================================
+    def _generate_from_period(self):
+        desde = self.fecha_desde.get()
+        hasta = self.fecha_hasta.get()
+        self._switch_tab(self.active_tab, desde, hasta)
+
+
+    # ================================================================
+    # RENDERIZACIÓN DEL INFORME
+    # ================================================================
+    def _render_report(self, data, title):
+
+        # El área scrolleable se limpia automáticamente por GraphicPanel
+        desde = self.fecha_desde.get()
+        hasta = self.fecha_hasta.get()
+
+        if not data:
+            fig = ChartFactory.empty("Sin datos disponibles")
+        else:
+            if title == "Ventas por empleado":
+                labels = [x["nombre"] for x in data]
+                values = [x["total"] for x in data]
+                fig = ChartFactory.bar_chart(labels, values, title, "Total (€)")
+
+            elif title == "Estado presupuestos":
+                fig = ChartFactory.pie_chart(
+                    labels=list(data.keys()),
+                    values=list(data.values()),
+                    title=title
+                )
+
+            elif title == "Facturación mensual":
+                meses = sorted(data.keys())
+                fig = ChartFactory.line_chart(
+                    labels=meses,
+                    values=[data[m] for m in meses],
+                    title=title,
+                    xlabel="Mes",
+                    ylabel="€"
+                )
+
+            elif title == "Ventas por producto":
+                labels = [x["producto"] for x in data]
+                values = [x["total"] for x in data]
+                fig = ChartFactory.bar_chart(labels, values, title, "Total (€)")
+
+            elif title == "Ratio conversión":
+                fig = ChartFactory.pie_chart(
+                    labels=list(data.keys()),
+                    values=list(data.values()),
+                    title=title
+                )
+
+        # Texto del periodo dentro del gráfico
+        fig.text(
+            0.01, 0.01,
+            f"Periodo: {desde} → {hasta}",
+            fontsize=10
+        )
+
+        # Guardar figura actual
+        self.current_figure = fig
+
+        # Mostrar usando GraphicPanel avanzado
+        self.canvas_widget = GraphicPanel.display(self.scroll_area, fig)
+
+    # ================================================================
+    # EXPORTAR
+    # ================================================================
+    def _export_pdf(self):
+        if not self.current_figure:
+            return messagebox.showwarning("Error", "No hay informe generado.")
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF", "*.pdf")]
+        )
+        if path:
+            PDFExporter.export(self.current_figure, path)
+
+    def _export_png(self):
+        if not self.current_figure:
+            return messagebox.showwarning("Error", "No hay informe generado.")
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG", "*.png")]
+        )
+        if path:
+            ImageExporter.export(self.current_figure, path)
+
+    # ================================================================
+    # ZOOM REAL
+    # ================================================================
+    def _zoom_in(self):
+        if GraphicPanel.current_canvas:
+            self.zoom.zoom_in()
+            self.zoom.apply_zoom(GraphicPanel.current_canvas)
             return
 
-        facturas = fact.get("data", [])
-        empleados = emp.get("data", [])
+        self.zoom.zoom_in()
+        self.zoom.apply_zoom(self.current_figure)
 
-        # Agrupar total por empleado
-        ventas = {}
-        for f in facturas:
-            eid = f.get("empleado_id")
-            if not eid:
-                continue
-            total = float(f.get("total") or 0)
-            ventas[eid] = ventas.get(eid, 0) + total
+        # Redibujar figura
+        self._switch_tab(self.active_tab)
 
-        # Preparar datos
-        nombres = []
-        totales = []
-
-        for e in empleados:
-            eid = e.get("id")
-            if eid in ventas:
-                nombres.append(f"{e.get('nombre','')} {e.get('apellidos','')}")
-                totales.append(ventas[eid])
-
-        fig = Figure(figsize=(9, 5), dpi=100)
-        ax = fig.add_subplot(111)
-
-        if totales:
-            ax.bar(nombres, totales)
-            ax.set_title("Ventas por Empleado")
-            ax.set_ylabel("Total (€)")
-            ax.tick_params(axis="x", rotation=40)
-        else:
-            ax.text(0.5, 0.5, "Sin datos disponibles",
-                    ha="center", va="center", transform=ax.transAxes)
-
-        fig.tight_layout()
-
-        canvas = FigureCanvasTkAgg(fig, master=self.ventas_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-    # ================================================================
-    # INFORME 2 — ESTADO DE PRESUPUESTOS
-    # ================================================================
-    def _load_estado_presupuestos(self):
-
-        for w in self.presupuestos_frame.winfo_children():
-            w.destroy()
-
-        res = self.api.get_presupuestos()
-
-        if not res.get("success"):
-            ttk.Label(self.presupuestos_frame, text="Error al cargar datos").pack(pady=20)
+    def _zoom_out(self):
+        if GraphicPanel.current_canvas:
+            self.zoom.zoom_out()
+            self.zoom.apply_zoom(GraphicPanel.current_canvas)
             return
 
-        presupuestos = res.get("data", [])
+        self.zoom.zoom_out()
+        self.zoom.apply_zoom(self.current_figure)
 
-        estados = {}
-        for p in presupuestos:
-            estado = p.get("estado", "DESCONOCIDO")
-            estados[estado] = estados.get(estado, 0) + 1
-
-        fig = Figure(figsize=(8, 6), dpi=100)
-        ax = fig.add_subplot(111)
-
-        if estados:
-            labels = list(estados.keys())
-            sizes = list(estados.values())
-            ax.pie(sizes, labels=labels, autopct="%1.1f%%", startangle=90)
-            ax.set_title("Estado de los Presupuestos")
-        else:
-            ax.text(0.5, 0.5, "Sin datos disponibles",
-                    ha="center", va="center", transform=ax.transAxes)
-
-        canvas = FigureCanvasTkAgg(fig, master=self.presupuestos_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-    # ================================================================
-    # INFORME 3 — FACTURACIÓN MENSUAL
-    # ================================================================
-    def _load_facturacion_mensual(self):
-
-        for w in self.facturacion_frame.winfo_children():
-            w.destroy()
-
-        res = self.api.get_facturas()
-
-        if not res.get("success"):
-            ttk.Label(self.facturacion_frame, text="Error al cargar datos").pack(pady=20)
-            return
-
-        facturas = res.get("data", [])
-
-        fact_por_mes = {}
-
-        for f in facturas:
-            fecha = f.get("fecha", "")
-            if not fecha or len(fecha) < 7:
-                continue
-
-            mes = fecha[:7]  # YYYY-MM
-            total = float(f.get("total") or 0)
-            fact_por_mes[mes] = fact_por_mes.get(mes, 0) + total
-
-        fig = Figure(figsize=(10, 5), dpi=100)
-        ax = fig.add_subplot(111)
-
-        if fact_por_mes:
-            meses = sorted(fact_por_mes.keys())
-            totales = [fact_por_mes[m] for m in meses]
-
-            ax.plot(meses, totales, marker="o")
-            ax.set_title("Facturación Mensual")
-            ax.set_xlabel("Mes")
-            ax.set_ylabel("Total (€)")
-            ax.tick_params(axis="x", rotation=40)
-            ax.grid(alpha=0.3)
-        else:
-            ax.text(0.5, 0.5, "Sin datos disponibles",
-                    ha="center", va="center", transform=ax.transAxes)
-
-        fig.tight_layout()
-
-        canvas = FigureCanvasTkAgg(fig, master=self.facturacion_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        # Redibujar figura
+        self._switch_tab(self.active_tab)
