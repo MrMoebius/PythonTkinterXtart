@@ -127,7 +127,9 @@ class DataTable(ttk.Frame):
         # Insertar datos
         for row in page_data:
             values = [str(row.get(col["name"], "")) for col in self.columns]
-            self.tree.insert("", tk.END, values=values, tags=(row,))
+            iid = str(row.get("id"))
+            self.tree.insert("", tk.END, iid=iid, values=values)
+
         
         # Actualizar label de paginación
         self.page_label.config(text=f"Página {self.current_page} de {total_pages} (Total: {len(self.filtered_data)})")
@@ -150,10 +152,11 @@ class DataTable(ttk.Frame):
         """Maneja la selección de una fila"""
         selection = self.tree.selection()
         if selection and self.on_select:
-            item = self.tree.item(selection[0])
-            tags = item.get("tags", [])
-            if tags:
-                self.on_select(tags[0])
+            iid = selection[0]
+            row = next((r for r in self.filtered_data if str(r.get("id")) == iid), None)
+            if row and self.on_select:
+                self.on_select(row)
+
     
     def _on_double_click(self, event):
         """Maneja el doble clic"""
@@ -167,12 +170,16 @@ class DataTable(ttk.Frame):
     def get_selected(self) -> Optional[Dict]:
         """Obtiene el elemento seleccionado"""
         selection = self.tree.selection()
-        if selection:
-            item = self.tree.item(selection[0])
-            tags = item.get("tags", [])
-            if tags:
-                return tags[0]
+        if not selection:
+            return None
+        iid = selection[0]
+        # Buscar el diccionario real en filtered_data
+        for row in self.filtered_data:
+            if str(row.get("id")) == iid:
+                return row
+
         return None
+
     
     def clear_selection(self):
         """Limpia la selección"""

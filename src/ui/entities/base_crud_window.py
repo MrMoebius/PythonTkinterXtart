@@ -39,7 +39,7 @@ class BaseCRUDWindow(ttk.Frame):
         self.data = []
 
         self._create_widgets()
-        self._load_data()
+        # self._load_data()
 
     # =====================================================================
     # UI
@@ -115,17 +115,23 @@ class BaseCRUDWindow(ttk.Frame):
     # FILTRADO (solo empleados/admin)
     # =====================================================================
     def _on_filter(self, filter_values: Dict):
-        if not filter_values:
-            self.table.clear_filter()
+
+        if not any(filter_values.values()):
+            self.table.set_data([])
             return
 
-        def filter_func(row):
-            for k, v in filter_values.items():
-                if k in row and v.lower() not in str(row[k]).lower():
-                    return False
-            return True
+        result = self.api.get_all(
+            self.entity_name,
+            params={k: v for k, v in filter_values.items() if v}
+        )
 
-        self.table.filter_data(filter_func)
+        if not result.get("success"):
+            messagebox.showerror("Error", f"Error al filtrar datos: {result.get('error')}")
+            return
+
+        self.data = result.get("data", [])
+        self.table.set_data(self.data)
+
 
     # =====================================================================
     # CRUD
@@ -182,3 +188,6 @@ class BaseCRUDWindow(ttk.Frame):
 
     def _get_form_fields(self) -> List[Dict]:
         raise NotImplementedError("Debe implementarse en la clase hija")
+
+    def get_all_filtered(self, entity_name, filters):
+        return self.get(entity_name, params=filters)

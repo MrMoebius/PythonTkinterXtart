@@ -76,7 +76,21 @@ class DemoClient:
         path = os.path.join(self.base, filename)
 
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+
+            ordered = []
+            order = ["id", "nombre", "apellidos", "email", "telefono", "direccion"]
+
+            for item in data:
+                fixed = {k: item.get(k) for k in order}
+                ordered.append(fixed)
+
+            json.dump(
+                ordered,
+                f,
+                indent=2,
+                ensure_ascii=False
+            )
+
 
     # --------------------------------------------------
     # CRUD GENÉRICO
@@ -94,7 +108,8 @@ class DemoClient:
             for row in data:
                 ok = True
                 for k, v in params.items():
-                    if str(row.get(k)) != str(v):
+                    val = str(row.get(k, "")).lower()
+                    if v.lower() not in val:
                         ok = False
                         break
                 if ok:

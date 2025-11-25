@@ -21,7 +21,8 @@ class GraphicPanel:
 
         # Obtener widget TK
         widget = canvas.get_tk_widget()
-        widget.pack(fill="both", expand=True)
+        widget.pack(fill="x", expand=False, pady=10)
+
 
         # Guardar referencia del canvas actual
         GraphicPanel.current_canvas = canvas

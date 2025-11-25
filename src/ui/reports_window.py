@@ -250,7 +250,7 @@ class ReportsWindow(ctk.CTkFrame):
         )
 
         # Guardar figura actual
-        self.current_figure = fig
+        fig.set_size_inches(8, 4)
 
         # Mostrar usando GraphicPanel avanzado
         self.canvas_widget = GraphicPanel.display(self.scroll_area, fig)
