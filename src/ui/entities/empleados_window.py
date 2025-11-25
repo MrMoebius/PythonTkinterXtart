@@ -14,8 +14,12 @@ class EmpleadosWindow(BaseCRUDWindow):
     """Gestión de empleados (Solo ADMIN)."""
 
     def __init__(self, parent, api):
+
+        # Crear lista vacía ANTES DE LLAMAR A super()
+        self.roles = []
+
         # ---------------------------------------------------------
-        # Columnas mostradas en la tabla
+        # Columnas
         # ---------------------------------------------------------
         columns = [
             {"name": "id", "width": 60, "anchor": "center"},
@@ -23,7 +27,7 @@ class EmpleadosWindow(BaseCRUDWindow):
             {"name": "apellidos", "width": 150},
             {"name": "email", "width": 220},
             {"name": "telefono", "width": 130},
-            {"name": "rol_nombre", "width": 150},  # ← nombre del rol, no ID
+            {"name": "rol_nombre", "width": 150},
         ]
 
         # ---------------------------------------------------------
@@ -32,17 +36,26 @@ class EmpleadosWindow(BaseCRUDWindow):
         filters = [
             {"name": "nombre", "type": "text", "label": "Nombre"},
             {"name": "email", "type": "text", "label": "Email"},
-            {"name": "rol_nombre", "type": "text", "label": "Rol"},
+            {"name": "rol_nombre", "type": "select", "label": "Rol", "options": ["(Sin filtro)"]},
         ]
 
+
+        # Crear ventana base
         super().__init__(parent, api, "empleados", columns, filters, client_mode=False)
 
-        # Cargar roles disponibles
-        self.roles = []
+        # YA podemos cargar roles
         self._load_roles()
 
-        # Convertir rol_id a rol_nombre para la tabla
+        # Actualizar las opciones del filtro de rol
+        self.filter_panel.filter_widgets["rol_nombre"]["values"] = \
+            ["(Sin filtro)"] + [r["nombre"] for r in self.roles]
+
+        self.filter_panel.filter_widgets["rol_nombre"].set("(Sin filtro)")
+
+
+        # Aplicar nombres de rol en la tabla
         self._apply_role_names()
+
 
     # =====================================================================
     # ROLES
@@ -53,15 +66,24 @@ class EmpleadosWindow(BaseCRUDWindow):
             self.roles = result.get("data", [])
         else:
             self.roles = []
+        self.filter_panel.filter_widgets["rol_nombre"]["values"] = ["(Sin filtro)"] + [r["nombre"] for r in self.roles]
+        self.filter_panel.filter_widgets["rol_nombre"].set("(Sin filtro)")
+
 
     def _apply_role_names(self):
         """Convierte rol_id → rol_nombre para mostrar en tabla."""
         for emp in self.data:
-            rid = emp.get("rol_id")
+            rid = emp.get("rol_empleado")
+            try:
+                rid = int(rid)
+            except:
+                rid = None
+
             emp["rol_nombre"] = next(
                 (r["nombre"] for r in self.roles if r["id"] == rid),
                 "SIN ROL"
             )
+
 
         self.table.set_data(self.data)
 
@@ -74,7 +96,7 @@ class EmpleadosWindow(BaseCRUDWindow):
             {"name": "apellidos", "label": "Apellidos", "type": "text", "required": True},
             {"name": "email", "label": "Email", "type": "email", "required": True},
             {"name": "telefono", "label": "Teléfono", "type": "phone"},
-            {"name": "rol_id", "label": "Rol", "type": "select", "required": True},
+            {"name": "rol_empleado", "label": "Rol", "type": "select", "required": True},
         ]
 
     # =====================================================================
@@ -84,6 +106,8 @@ class EmpleadosWindow(BaseCRUDWindow):
         pass
     
     def _show_form(self, item: Optional[Dict]):
+        print("ITEM =", item)
+
         form = tk.Toplevel(self)
         form.title("Nuevo Empleado" if item is None else "Editar Empleado")
         form.geometry("500x450")
@@ -118,9 +142,15 @@ class EmpleadosWindow(BaseCRUDWindow):
 
                 # Cargar valor
                 if item:
-                    rid = item.get("rol_id")
+                    rid = item.get("rol_empleado")
+                    try:
+                        rid = int(rid)
+                    except:
+                        rid = None
+
                     name = next((r["nombre"] for r in self.roles if r["id"] == rid), "")
                     combo.set(name)
+
 
             # EMAIL
             elif f["type"] == "email":
@@ -175,7 +205,7 @@ class EmpleadosWindow(BaseCRUDWindow):
                     if rid is None:
                         messagebox.showerror("Error", "Seleccione un rol válido")
                         return
-                    data[name] = rid
+                    data["rol_empleado"] = rid
 
                 # ValidatedEntry
                 elif isinstance(widget, ValidatedEntry):
@@ -201,3 +231,24 @@ class EmpleadosWindow(BaseCRUDWindow):
 
         ttk.Button(btns, text="Guardar", command=save).pack(side=tk.LEFT, padx=5)
         ttk.Button(btns, text="Cancelar", command=form.destroy).pack(side=tk.LEFT, padx=5)
+        
+    def _load_data(self):
+            super()._load_data()
+            self._load_roles()
+            self._apply_role_names()
+            self._refresh_roles_in_table()
+            
+    def _refresh_roles_in_table(self):
+        """Rellena rol_nombre según rol_empleado en self.data."""
+        for emp in self.data:
+            rid = emp.get("rol_empleado")
+            emp["rol_nombre"] = next(
+                (r["nombre"] for r in self.roles if r["id"] == rid),
+                "SIN ROL"
+            )
+
+        if hasattr(self, "table"):
+            self.table.set_data(self.data)
+
+
+

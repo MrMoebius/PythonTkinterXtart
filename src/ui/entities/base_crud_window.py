@@ -109,28 +109,57 @@ class BaseCRUDWindow(ttk.Frame):
             data = [row for row in data if row.get("id") == uid]
 
         self.data = data
-        self.table.set_data(self.data)
+
+        # Si es ventana de empleados, aplicar roles
+        if hasattr(self, "_apply_role_names"):
+            self._apply_role_names()
+        else:
+            self.table.set_data(self.data)
+
 
     # =====================================================================
     # FILTRADO (solo empleados/admin)
     # =====================================================================
     def _on_filter(self, filter_values: Dict):
 
-        if not any(filter_values.values()):
-            self.table.set_data([])
+        nombre = filter_values.get("nombre")
+        email = filter_values.get("email")
+        rol_text = filter_values.get("rol_nombre")  # valor exacto del combo
+
+        params = {}
+
+        if nombre:
+            params["nombre"] = nombre
+
+        if email:
+            params["email"] = email
+
+        # Filtro por rol solo si NO es "(Sin filtro)"
+        if rol_text and rol_text != "(Sin filtro)":
+            rid = next((r["id"] for r in self.roles if r["nombre"] == rol_text), None)
+            if rid:
+                params["rol_empleado"] = rid
+
+        # Si no hay filtros, recargar todo
+        if not params:
+            self._load_data()
             return
 
-        result = self.api.get_all(
-            self.entity_name,
-            params={k: v for k, v in filter_values.items() if v}
-        )
+        # Pedir al backend DEMO
+        result = self.api.get_all("empleados", params=params)
 
         if not result.get("success"):
-            messagebox.showerror("Error", f"Error al filtrar datos: {result.get('error')}")
+            messagebox.showerror("Error", "No se pudo aplicar filtros.")
             return
 
         self.data = result.get("data", [])
+
+        # Aplicar conversion rol_id → rol_nombre
+        self._apply_role_names()
+
+        # Mostrar en tabla
         self.table.set_data(self.data)
+
 
 
     # =====================================================================

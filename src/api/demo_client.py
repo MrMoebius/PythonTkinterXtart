@@ -78,7 +78,13 @@ class DemoClient:
         with open(path, "w", encoding="utf-8") as f:
 
             ordered = []
-            order = ["id", "nombre", "apellidos", "email", "telefono", "direccion"]
+            if filename == "clientes.json":
+                order = ["id", "nombre", "apellidos", "email", "telefono", "direccion"]
+            else:
+                # No reordenar empleados.json ni otros
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                return
+
 
             for item in data:
                 fixed = {k: item.get(k) for k in order}
@@ -102,21 +108,35 @@ class DemoClient:
 
         data = result["data"]
 
-        # Filtros para emular REST ?campo=valor
-        if params:
-            filtrado = []
-            for row in data:
-                ok = True
-                for k, v in params.items():
-                    val = str(row.get(k, "")).lower()
-                    if v.lower() not in val:
-                        ok = False
-                        break
-                if ok:
-                    filtrado.append(row)
-            data = filtrado
+        # Si no hay filtros → devolver todo
+        if not params:
+            return {"success": True, "data": data}
 
-        return {"success": True, "data": data}
+        filtrado = []
+
+        for row in data:
+            ok = True
+            for k, v in params.items():
+
+                row_val = row.get(k)
+
+                if row_val is None:
+                    ok = False
+                    break
+
+                # Comparación segura (string o int)
+                row_val_str = str(row_val).lower()
+                v_str = str(v).lower()
+
+                if v_str not in row_val_str:
+                    ok = False
+                    break
+
+            if ok:
+                filtrado.append(row)
+
+        return {"success": True, "data": filtrado}
+
 
     def get_by_id(self, entidad, entity_id):
         result = self._load(f"{entidad}.json")
