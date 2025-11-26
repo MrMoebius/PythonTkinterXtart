@@ -6,8 +6,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, List, Optional
 
-from src.components.data_table import DataTable
-from src.components.filter_panel import FilterPanel
+from src.widgets.data_table import DataTable
+from src.widgets.filter_panel import FilterPanel
 
 
 class BaseCRUDWindow(ttk.Frame):
@@ -18,7 +18,7 @@ class BaseCRUDWindow(ttk.Frame):
                  client_mode: bool = False):
         """
         parent       → Tk o Frame padre
-        api          → RESTClient o DemoClient
+        api          → RESTClient
         entity_name  → 'clientes', 'facturas', etc.
         columns      → definiciones de columnas para DataTable
         filters      → lista de campos filtrables

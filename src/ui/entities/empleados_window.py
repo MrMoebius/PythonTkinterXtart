@@ -7,7 +7,7 @@ from tkinter import ttk, messagebox
 from typing import Dict, Optional
 
 from src.ui.entities.base_crud_window import BaseCRUDWindow
-from src.components.validated_entry import ValidatedEntry
+from src.widgets.validated_entry import ValidatedEntry
 
 
 class EmpleadosWindow(BaseCRUDWindow):

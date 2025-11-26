@@ -1,5 +1,5 @@
 """
-Ventana de gestión de clientes
+Vista de gestión de clientes
 """
 
 import tkinter as tk
@@ -8,16 +8,24 @@ from typing import Dict, Optional
 
 from src.ui.entities.base_crud_window import BaseCRUDWindow
 from src.widgets.validated_entry import ValidatedEntry
+from src.services.cliente_service import ClienteService
+from src.models.cliente import Cliente
 
 
-class ClientesWindow(BaseCRUDWindow):
-    """Ventana para gestionar clientes (Empleado/Admin) o perfil (Cliente)."""
+class ClientesView(BaseCRUDWindow):
+    """Vista para gestionar clientes (Empleado/Admin) o perfil (Cliente)."""
 
-    def __init__(self, parent, api, client_mode: bool = False):
-
-        # ---------------------------------------------------------
+    def __init__(self, parent, cliente_service: ClienteService, client_mode: bool = False):
+        """
+        Args:
+            parent: Widget padre
+            cliente_service: Servicio de clientes
+            client_mode: True si es cliente final (solo su registro)
+        """
+        # Guardar servicio
+        self.cliente_service = cliente_service
+        
         # Columnas visibles en la tabla
-        # ---------------------------------------------------------
         columns = [
             {"name": "id", "width": 60, "anchor": "center"},
             {"name": "nombre", "width": 150},
@@ -27,20 +35,73 @@ class ClientesWindow(BaseCRUDWindow):
             {"name": "direccion", "width": 220},
         ]
 
-        # ---------------------------------------------------------
-        # Filtros → solo empleados/admin (controlado por BaseCRUD)
-        # ---------------------------------------------------------
+        # Filtros → solo empleados/admin
         filters = [
             {"name": "nombre", "type": "text", "label": "Nombre"},
             {"name": "email", "type": "text", "label": "Email"},
             {"name": "telefono", "type": "text", "label": "Teléfono"},
-        ]
+        ] if not client_mode else []
 
-        super().__init__(parent, api, "clientes", columns, filters, client_mode)
+        # Usar API directamente para BaseCRUDWindow (compatibilidad temporal)
+        # En el futuro se puede refactorizar BaseCRUDWindow para usar servicios
+        api_mock = type('obj', (object,), {
+            'get_all': lambda entity, params=None: self._get_all_wrapper(params),
+            'get_by_id': lambda entity, entity_id: self._get_by_id_wrapper(entity_id),
+            'create': lambda entity, payload: self._create_wrapper(payload),
+            'update': lambda entity, entity_id, payload: self._update_wrapper(entity_id, payload),
+            'delete': lambda entity, entity_id: self._delete_wrapper(entity_id),
+            'user_id': getattr(cliente_service.client, 'user_id', None),
+        })()
+        
+        super().__init__(parent, api_mock, "clientes", columns, filters, client_mode)
 
-    # =====================================================================
-    # CAMPOS DEL FORMULARIO
-    # =====================================================================
+    def _get_all_wrapper(self, params=None):
+        """Wrapper para get_all usando servicio"""
+        result = self.cliente_service.get_all(filters=params)
+        if result.get("success"):
+            # Convertir modelos a dicts para la tabla
+            data = [self._model_to_dict(c) for c in result["data"]]
+            return {"success": True, "data": data}
+        return result
+
+    def _get_by_id_wrapper(self, cliente_id):
+        """Wrapper para get_by_id usando servicio"""
+        result = self.cliente_service.get_by_id(cliente_id)
+        if result.get("success"):
+            return {"success": True, "data": self._model_to_dict(result["data"])}
+        return result
+
+    def _create_wrapper(self, payload):
+        """Wrapper para create usando servicio"""
+        cliente = Cliente.from_dict(payload)
+        result = self.cliente_service.create(cliente)
+        if result.get("success"):
+            return {"success": True, "data": self._model_to_dict(result["data"])}
+        return result
+
+    def _update_wrapper(self, cliente_id, payload):
+        """Wrapper para update usando servicio"""
+        cliente = Cliente.from_dict(payload)
+        result = self.cliente_service.update(cliente_id, cliente)
+        if result.get("success"):
+            return {"success": True, "data": self._model_to_dict(result["data"])}
+        return result
+
+    def _delete_wrapper(self, cliente_id):
+        """Wrapper para delete usando servicio"""
+        return self.cliente_service.delete(cliente_id)
+
+    def _model_to_dict(self, cliente: Cliente) -> Dict:
+        """Convierte un modelo Cliente a dict para la tabla"""
+        return {
+            "id": cliente.id,
+            "nombre": cliente.nombre,
+            "apellidos": cliente.apellidos,
+            "email": cliente.email,
+            "telefono": cliente.telefono or "",
+            "direccion": cliente.direccion or "",
+        }
+
     def _get_form_fields(self) -> list:
         """Definición de los campos del formulario de clientes."""
         return [
@@ -51,12 +112,9 @@ class ClientesWindow(BaseCRUDWindow):
             {"name": "direccion", "label": "Dirección", "type": "text"},
         ]
 
-    # =====================================================================
-    # FORMULARIO: CREAR / EDITAR
-    # =====================================================================
     def _on_select(self, item):
-        pass    
-    
+        pass
+
     def _show_form(self, item: Optional[Dict]):
         """Ventana de creación o edición de clientes."""
 
@@ -79,9 +137,7 @@ class ClientesWindow(BaseCRUDWindow):
         fields = {}
         form_fields = self._get_form_fields()
 
-        # ---------------------------------------------------------
         # Crear campos
-        # ---------------------------------------------------------
         for i, field in enumerate(form_fields):
             ttk.Label(main, text=field["label"] + ":").grid(
                 row=i, column=0, sticky="w", pady=6, padx=5
@@ -103,9 +159,7 @@ class ClientesWindow(BaseCRUDWindow):
 
         main.columnconfigure(1, weight=1)
 
-        # ---------------------------------------------------------
-        # BOTONES
-        # ---------------------------------------------------------
+        # Botones
         btns = ttk.Frame(main)
         btns.grid(row=len(form_fields), column=0, columnspan=2, pady=20)
 
@@ -122,11 +176,11 @@ class ClientesWindow(BaseCRUDWindow):
                 if value is not None:
                     data[key] = value
 
-            # Crear o actualizar
+            # Crear o actualizar usando servicio
             if item is None:
-                result = self.api.create("clientes", data)
+                result = self._create_wrapper(data)
             else:
-                result = self.api.update("clientes", item["id"], data)
+                result = self._update_wrapper(item["id"], data)
 
             if result.get("success"):
                 messagebox.showinfo("Éxito", "Cliente guardado correctamente.")
@@ -138,3 +192,4 @@ class ClientesWindow(BaseCRUDWindow):
 
         ttk.Button(btns, text="Guardar", command=save).pack(side=tk.LEFT, padx=5)
         ttk.Button(btns, text="Cancelar", command=form_window.destroy).pack(side=tk.LEFT, padx=5)
+
