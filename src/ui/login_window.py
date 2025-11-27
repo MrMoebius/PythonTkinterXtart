@@ -81,24 +81,24 @@ class LoginWindow:
         # -------------------------
         # SI BACKEND NO RESPONDE
         # -------------------------
-        if not result.get("success"):
-            messagebox.showerror("Error", result.get("error", "Backend no disponible"))
+        # if not result.get("success"):
+        #     messagebox.showerror("Error", result.get("error", "Backend no disponible"))
 
-            # MODO VISUAL COMO ADMIN
-            fake_user = {
-                "rol": "ADMIN",
-                "nombre": "Administrador (modo visual)",
-                "username": "admin",
-                "email": "admin@local"
-            }
+        #     # MODO VISUAL COMO ADMIN
+        #     fake_user = {
+        #         "rol": "ADMIN",
+        #         "nombre": "Administrador (modo visual)",
+        #         "username": "admin",
+        #         "email": "admin@local"
+        #     }
 
-            self.window.destroy()
-            self.root.deiconify()
+        #     self.window.destroy()
+        #     self.root.deiconify()
 
-            from src.ui.main_window import MainWindow
-            main_window = MainWindow(self.root, self.api, fake_user)
-            main_window.show()
-            return
+        #     from src.ui.main_window import MainWindow
+        #     main_window = MainWindow(self.root, self.api, fake_user)
+        #     main_window.show()
+        #     return
 
         # -------------------------
         # LOGIN CORRECTO
@@ -108,6 +108,21 @@ class LoginWindow:
         self.window.destroy()
         self.root.deiconify()
 
-        from src.ui.main_window import MainWindow
-        main_window = MainWindow(self.root, self.api, user_info)
-        main_window.show()
+        # Selección de dashboard según tipo/rol
+        tipo = user_info.get("tipo", "").lower()
+        rol = user_info.get("rol", "").lower()
+
+        if tipo == "cliente":
+            from src.ui.client_dashboard import ClientDashboard
+            dashboard = ClientDashboard(self.root, self.api, user_info)
+
+        elif tipo == "empleado" and rol == "admin":
+            from src.ui.admin_dashboard import AdminDashboard
+            dashboard = AdminDashboard(self.root, self.api, user_info)
+
+        else:
+            from src.ui.employee_dashboard import EmployeeDashboard
+            dashboard = EmployeeDashboard(self.root, self.api, user_info)
+
+        dashboard.show()
+

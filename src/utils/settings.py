@@ -10,7 +10,7 @@ class Settings:
     """Configuración centralizada de la aplicación"""
     
     # API Configuration
-    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8080/democrudapi")
+    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8080/crudxtart_war")
     API_TIMEOUT: int = int(os.getenv("API_TIMEOUT", "30"))
     
     # Application

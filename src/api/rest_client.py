@@ -69,7 +69,7 @@ class RESTClient:
             
             response = self.session.post(
                 url,
-                json={"username": username, "password": password},
+                json={"email": username, "password": password},
                 headers={"Content-Type": "application/json"},
                 timeout=self.timeout
             )
