@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from src.ui.main_window import MainWindow
-
+from tkinter import messagebox
 
 class LoginWindow:
     def __init__(self, root, api_client):
@@ -66,24 +66,63 @@ class LoginWindow:
         password = self.password_entry.get()
 
         if not username or not password:
-            ctk.CTkMessageBox(title="Error", message="Por favor, complete todos los campos")
+            messagebox.showerror("Error", "Por favor, complete todos los campos")
             return
 
+        # Indicador de espera
         self.window.config(cursor="wait")
         self.window.update()
 
         result = self.api.login(username, password)
+
+        # Restaurar cursor
         self.window.config(cursor="")
 
-        if not result.get("success"):
-            ctk.CTkMessageBox(title="Error", message=result.get("error", "Error desconocido"))
-            return
+        # -------------------------
+        # SI BACKEND NO RESPONDE
+        # -------------------------
+        # if not result.get("success"):
+        #     messagebox.showerror("Error", result.get("error", "Backend no disponible"))
 
+        #     # MODO VISUAL COMO ADMIN
+        #     fake_user = {
+        #         "rol": "ADMIN",
+        #         "nombre": "Administrador (modo visual)",
+        #         "username": "admin",
+        #         "email": "admin@local"
+        #     }
+
+        #     self.window.destroy()
+        #     self.root.deiconify()
+
+        #     from src.ui.main_window import MainWindow
+        #     main_window = MainWindow(self.root, self.api, fake_user)
+        #     main_window.show()
+        #     return
+
+        # -------------------------
+        # LOGIN CORRECTO
+        # -------------------------
         user_info = result["data"]
 
         self.window.destroy()
-
         self.root.deiconify()
 
-        main_window = MainWindow(self.root, self.api, user_info)
-        main_window.show()
+        # Selección de dashboard según tipo/rol
+        tipo = user_info.get("tipo", "").lower()
+        rol = user_info.get("rol", "").lower()
+
+        if tipo == "cliente":
+            from src.ui.client_dashboard import ClientDashboard
+            dashboard = ClientDashboard(self.root, self.api, user_info)
+
+        elif tipo == "empleado" and rol == "admin":
+            from src.ui.admin_dashboard import AdminDashboard
+            dashboard = AdminDashboard(self.root, self.api, user_info)
+
+        else:
+            from src.ui.employee_dashboard import EmployeeDashboard
+            dashboard = EmployeeDashboard(self.root, self.api, user_info)
+
+        dashboard.show()
+

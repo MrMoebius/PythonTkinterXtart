@@ -12,28 +12,31 @@ from src.ui.entities.pagos_window import PagosWindow
 from src.ui.reports_window import ReportsWindow
 from src.ui.help_window import HelpWindow
 
-
 class MainWindow:
 
     def __init__(self, root, api, user_info):
         self.root = root
         self.api = api
-        self.user_info = user_info
 
-        self.current_frame = None
+        # user_info puede venir como None si no hay backend
+        self.user_info = user_info or {}
 
-        self.role = (user_info.get("rol") or "CLIENTE").upper()
+        # Rol seguro
+        self.role = (self.user_info.get("rol") or "CLIENTE").upper()
+
         self.is_admin = self.role == "ADMIN"
         self.is_empleado = self.role == "EMPLEADO"
         self.is_cliente = self.role == "CLIENTE"
 
+        # Username seguro
         self.username = (
-            user_info.get("nombre")
-            or user_info.get("username")
-            or user_info.get("email")
-            or f"ID-{user_info.get('id','?')}"
+            self.user_info.get("nombre")
+            or self.user_info.get("username")
+            or self.user_info.get("email")
+            or f"ID-{self.user_info.get('id', '?')}"
         )
 
+        self.current_frame = None
 
     # ---------------------------------------------------------
     # Limpieza total entre logins
