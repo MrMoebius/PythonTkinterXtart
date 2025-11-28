@@ -2,7 +2,9 @@ import customtkinter as ctk
 from PIL import Image
 import os
 from tkinter import messagebox
-from src.ui.dashboard import DashboardWindow
+from src.ui.dashboard.dashboard_admin import AdminDashboardView
+from src.ui.dashboard.dashboard_employee import EmployeeDashboardView
+from src.ui.dashboard.dashboard_client import ClientDashboardView
 from src.ui.entities.clientes_window import ClientesWindow
 from src.ui.entities.empleados_window import EmpleadosWindow
 from src.ui.entities.productos_window import ProductosWindow
@@ -21,12 +23,21 @@ class MainWindow:
         # user_info puede venir como None si no hay backend
         self.user_info = user_info or {}
 
-        # Rol seguro
-        self.role = (self.user_info.get("rol") or "CLIENTE").upper()
+        # Determinar tipo y rol del usuario
+        # El backend Java devuelve: {"tipo": "empleado"|"cliente", "rol": "admin"|"comercial"|...}
+        tipo = (self.user_info.get("tipo") or "cliente").lower()
+        rol = (self.user_info.get("rol") or "").lower()
 
-        self.is_admin = self.role == "ADMIN"
-        self.is_empleado = self.role == "EMPLEADO"
-        self.is_cliente = self.role == "CLIENTE"
+        # Lógica de permisos:
+        # - Si tipo == "empleado" → es empleado (independientemente del rol)
+        # - Si tipo == "cliente" → es cliente
+        # - Si rol == "admin" → es admin (además de ser empleado)
+        self.is_cliente = tipo == "cliente"
+        self.is_empleado = tipo == "empleado"
+        self.is_admin = tipo == "empleado" and rol == "admin"
+        
+        # Guardar rol para referencia
+        self.role = rol.upper() if rol else "CLIENTE"
 
         # Username seguro
         self.username = (
@@ -269,9 +280,16 @@ class MainWindow:
         self._ensure_content_area()
         self._clear_frame()
 
-        self.current_frame = DashboardWindow(self.content_area, self.api)
-        self.current_frame.pack(fill="both", expand=True)
+        if self.is_admin:
+            self.current_frame = AdminDashboardView(self.content_area, self.api, self)
 
+        elif self.is_empleado:
+            self.current_frame = EmployeeDashboardView(self.content_area, self.api, self)
+
+        else:
+            self.current_frame = ClientDashboardView(self.content_area, self.api, self)
+
+        self.current_frame.pack(fill="both", expand=True)
         self._set_status("Dashboard")
 
 

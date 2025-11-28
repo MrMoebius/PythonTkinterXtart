@@ -1,7 +1,9 @@
 import customtkinter as ctk
 from src.ui.main_window import MainWindow
 from tkinter import messagebox
-
+from src.ui.dashboard.dashboard_admin import AdminDashboardView
+from src.ui.dashboard.dashboard_employee import EmployeeDashboardView
+from src.ui.dashboard.dashboard_client import ClientDashboardView
 class LoginWindow:
     def __init__(self, root, api_client):
         self.root = root
@@ -103,26 +105,22 @@ class LoginWindow:
         # -------------------------
         # LOGIN CORRECTO
         # -------------------------
-        user_info = result["data"]
+        if not result.get("success"):
+            error_msg = result.get("error", "Error de autenticación")
+            messagebox.showerror("Error", error_msg)
+            return
+
+        user_info = result.get("data", {})
+        
+        # Asegurar que el user_id esté disponible para los métodos del cliente
+        if "id" in user_info:
+            self.api.user_id = user_info["id"]
 
         self.window.destroy()
         self.root.deiconify()
 
-        # Selección de dashboard según tipo/rol
-        tipo = user_info.get("tipo", "").lower()
-        rol = user_info.get("rol", "").lower()
-
-        if tipo == "cliente":
-            from src.ui.client_dashboard import ClientDashboard
-            dashboard = ClientDashboard(self.root, self.api, user_info)
-
-        elif tipo == "empleado" and rol == "admin":
-            from src.ui.admin_dashboard import AdminDashboard
-            dashboard = AdminDashboard(self.root, self.api, user_info)
-
-        else:
-            from src.ui.employee_dashboard import EmployeeDashboard
-            dashboard = EmployeeDashboard(self.root, self.api, user_info)
-
-        dashboard.show()
+        # Crear MainWindow con el user_info
+        from src.ui.main_window import MainWindow
+        main_window = MainWindow(self.root, self.api, user_info)
+        main_window.show()
 
