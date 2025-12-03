@@ -17,21 +17,48 @@ class ClienteService:
         """
         self.client = rest_client
     
-    def get_all(self, filters: Optional[Dict] = None) -> Dict[str, Any]:
+    def get_all(
+        self, 
+        filters: Optional[Dict] = None,
+        nombre: Optional[str] = None,
+        email: Optional[str] = None,
+        telefono: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Obtiene todos los clientes.
+        Obtiene todos los clientes con filtros opcionales.
         
         Args:
-            filters: Filtros opcionales (ej: {"nombre": "Juan"})
+            filters: Filtros opcionales como dict (ej: {"nombre": "Juan"})
+                    Si se proporciona, se usa este dict directamente
+            nombre: Filtro por nombre (búsqueda parcial, case-insensitive)
+            email: Filtro por email (búsqueda parcial, case-insensitive)
+            telefono: Filtro por teléfono (búsqueda parcial)
             
         Returns:
             Dict con 'success' y 'data' (lista de Cliente) o 'error'
+            
+        Nota:
+            Si se proporciona 'filters', se usa directamente.
+            Si no, se construyen los filtros desde los parámetros individuales.
         """
-        result = self.client.get_all("clientes", params=filters)
+        # Si se proporciona filters dict, usarlo directamente
+        if filters:
+            result = self.client.get_all("clientes", params=filters)
+        else:
+            # Usar el método específico con parámetros individuales
+            result = self.client.get_clientes(
+                nombre=nombre,
+                email=email,
+                telefono=telefono
+            )
         
         if result.get("success") and result.get("data"):
             # Convertir a modelos Cliente
-            clientes = [Cliente.from_dict(item) for item in result["data"]]
+            clientes_data = result["data"]
+            # Asegurar que es una lista
+            if not isinstance(clientes_data, list):
+                clientes_data = [clientes_data]
+            clientes = [Cliente.from_dict(item) for item in clientes_data]
             return {"success": True, "data": clientes}
         
         return result
@@ -45,12 +72,31 @@ class ClienteService:
             
         Returns:
             Dict con 'success' y 'data' (Cliente) o 'error'
+            
+        Nota:
+            El backend devuelve un objeto individual cuando se busca por ID,
+            no un array. Si viene como array, se toma el primer elemento.
         """
-        result = self.client.get_by_id("clientes", cliente_id)
+        # Usar el método específico get_clientes con ID
+        result = self.client.get_clientes(cliente_id=cliente_id)
         
-        if result.get("success") and result.get("data"):
-            cliente = Cliente.from_dict(result["data"])
-            return {"success": True, "data": cliente}
+        if result.get("success"):
+            cliente_data = result.get("data")
+            
+            # El backend devuelve un objeto individual cuando se busca por ID
+            # Si viene como array (por compatibilidad), tomar el primero
+            if isinstance(cliente_data, list):
+                if cliente_data:
+                    cliente_data = cliente_data[0]
+                else:
+                    return {"success": False, "error": "Cliente no encontrado"}
+            
+            # Si es un objeto/diccionario, convertirlo a Cliente
+            if cliente_data and isinstance(cliente_data, dict):
+                cliente = Cliente.from_dict(cliente_data)
+                return {"success": True, "data": cliente}
+            elif cliente_data is None:
+                return {"success": False, "error": "Cliente no encontrado"}
         
         return result
     

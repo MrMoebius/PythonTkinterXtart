@@ -3,12 +3,7 @@ from datetime import datetime, timedelta
 
 
 class ReportLoader:
-    """
-    Carga datos para informes.
-    MODO AUTOMÁTICO:
-    - Si api es DemoClient → usa datos simulados
-    - Si api es RestClient  → consulta servidor Jakarta
-    """
+    """Carga datos de informes desde el backend o desde datos demo (según cliente)."""
 
     def __init__(self, api):
         self.api = api
@@ -35,7 +30,13 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/ventas-empleado", params=params)
+        # Si el endpoint no existe (404) o falla, usar datos demo
         if not res or not res.get("success"):
+            # Verificar si es un 404 (endpoint no existe)
+            error = res.get("error", "") if res else ""
+            error_str = str(error).lower()
+            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
+                return self._demo_ventas_por_empleado()
             return None
         return res.get("data")
 
@@ -54,7 +55,12 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/presupuestos-estado", params=params)
+        # Si el endpoint no existe (404) o falla, usar datos demo
         if not res or not res.get("success"):
+            error = res.get("error", "") if res else ""
+            error_str = str(error).lower()
+            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
+                return self._demo_estado_presupuestos()
             return None
         return res.get("data")
 
@@ -72,7 +78,12 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/facturacion-mensual", params=params)
+        # Si el endpoint no existe (404) o falla, usar datos demo
         if not res or not res.get("success"):
+            error = res.get("error", "") if res else ""
+            error_str = str(error).lower()
+            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
+                return self._demo_facturacion_mensual()
             return None
         return res.get("data")
 
@@ -90,7 +101,12 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/ventas-producto", params=params)
+        # Si el endpoint no existe (404) o falla, usar datos demo
         if not res or not res.get("success"):
+            error = res.get("error", "") if res else ""
+            error_str = str(error).lower()
+            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
+                return self._demo_ventas_por_producto()
             return None
         return res.get("data")
 
@@ -108,7 +124,12 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/ratio-conversion", params=params)
+        # Si el endpoint no existe (404) o falla, usar datos demo
         if not res or not res.get("success"):
+            error = res.get("error", "") if res else ""
+            error_str = str(error).lower()
+            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
+                return self._demo_ratio_conversion()
             return None
         return res.get("data")
 

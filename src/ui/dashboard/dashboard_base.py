@@ -25,23 +25,17 @@ class DashboardBase(ctk.CTkFrame, ABC):
         title = ctk.CTkLabel(
             self,
             text="Dashboard",
-            font=("Arial", 26, "bold"),
+            font=("Arial", 36, "bold"),
             text_color="white"
         )
-        title.pack(pady=14)
+        title.pack(pady=8)
 
         # Frame de estadísticas
-        stats_frame = ctk.CTkFrame(self, fg_color="#252932", corner_radius=16)
-        stats_frame.pack(fill="x", padx=24, pady=12)
+        stats_frame = ctk.CTkFrame(self, fg_color="#252932", corner_radius=20)
+        stats_frame.pack(fill="x", padx=8, pady=4)
 
         self.stats_container = ctk.CTkFrame(stats_frame, fg_color="#252932")
-        self.stats_container.pack(fill="both", expand=True, pady=6)
-
-        # Quick Access (solo si subclase lo activa)
-        if self.show_quick_access:
-            quick_frame = ctk.CTkFrame(self, fg_color="#252932", corner_radius=16)
-            quick_frame.pack(fill="x", padx=24, pady=10)
-            self._build_quick_access(quick_frame)
+        self.stats_container.pack(fill="both", expand=True, pady=4)
 
     # ================================================================
     # Métodos abstractos

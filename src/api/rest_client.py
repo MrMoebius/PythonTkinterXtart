@@ -39,6 +39,10 @@ class RESTClient:
         self.timeout = timeout
         self.token: Optional[str] = None
         self.user_role: Optional[str] = None
+        
+        # Helper para métodos específicos
+        from src.api.rest_helpers import RESTHelpers
+        self.helpers = RESTHelpers(self)
         self.user_id: Optional[int] = None
         self.username: Optional[str] = None
         
@@ -92,17 +96,22 @@ class RESTClient:
                 return {"success": False, "error": f"Error HTTP {response.status_code}: {error_msg[:200]}"}
 
             data = response.json()
+            logger.info(f"Respuesta del backend (login): {data}")
 
             # El backend Java devuelve {"success": true, "data": {...}} para login
             # Extraer datos del usuario desde la respuesta
             user_data = data.get("data", data)  # Login usa "data", no "dataObj"
             
+            logger.info(f"user_data extraído: {user_data}")
+            
             # Guardar sesión interna
             # El backend Java usa sesiones HTTP (JSESSIONID), no tokens JWT
             self.token = user_data.get("token") or data.get("token")
-            self.user_role = user_data.get("rol", "").upper()
+            self.user_role = (user_data.get("rol") or "").upper().strip()
             self.user_id = user_data.get("id")
             self.username = user_data.get("nombre", username)
+
+            logger.info(f"user_id: {self.user_id}, user_role: {self.user_role}, username: {self.username}")
 
             # El backend Java mantiene la sesión mediante cookies (JSESSIONID)
             # No necesitamos token para autenticación, la sesión HTTP se mantiene automáticamente
@@ -153,17 +162,7 @@ class RESTClient:
     # PETICIÓN GENÉRICA
     # -----------------------------------------------------
     def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
-        """
-        Realiza una petición HTTP genérica.
-        
-        Args:
-            method: Método HTTP (GET, POST, PUT, DELETE)
-            endpoint: Endpoint relativo (ej: "/clientes")
-            **kwargs: Argumentos adicionales para requests (json, params, etc.)
-            
-        Returns:
-            Dict con 'success' y 'data' o 'error'
-        """
+        """Realiza una petición HTTP y devuelve siempre un dict {'success', 'data'|'error'}."""
         try:
             url = Endpoints.build_url(endpoint)
             logger.debug(f"{method} {url}")
@@ -178,28 +177,46 @@ class RESTClient:
             if response.status_code in (200, 201):
                 try:
                     json_data = response.json() if response.content else None
+                    logger.debug(f"Respuesta JSON cruda: {json_data}")
                     if json_data:
-                        # El backend Java devuelve {"success": true, "dataObj": {...}}
-                        # Convertir "dataObj" a "data" para mantener compatibilidad
-                        if "dataObj" in json_data:
+                        # El backend Java ahora devuelve {"success": true, "data": {...}} 
+                        # o {"success": true, "dataObj": {...}} (formato antiguo)
+                        # Priorizar "data" sobre "dataObj" para compatibilidad
+                        if "data" in json_data:
+                            data_value = json_data["data"]
+                            logger.debug(f"data encontrado: {data_value} (type: {type(data_value)})")
+                            # Si data es null, convertir a lista vacía (backend devuelve [] cuando no hay datos)
+                            if data_value is None:
+                                json_data["data"] = []
+                                logger.debug("data era None, convertido a lista vacía []")
+                        elif "dataObj" in json_data:
+                            # Compatibilidad con formato antiguo
                             data_value = json_data.pop("dataObj")
-                            json_data["data"] = data_value if data_value is not None else []
-                        # Si ya tiene "data", mantenerlo
-                        elif "data" not in json_data:
-                            # Si no tiene "data" ni "dataObj", puede ser una lista directa
-                            if isinstance(json_data, list):
-                                return {"success": True, "data": json_data}
-                            # Si solo tiene "success", el dataObj puede estar vacío
+                            logger.debug(f"dataObj extraído: {data_value} (type: {type(data_value)})")
+                            if data_value is None:
+                                json_data["data"] = []
+                                logger.debug("dataObj era None, convertido a lista vacía []")
+                            else:
+                                json_data["data"] = data_value
+                        # Si no tiene "data" ni "dataObj", puede ser una lista directa
+                        elif isinstance(json_data, list):
+                            return {"success": True, "data": json_data}
+                        # Si solo tiene "success", el dataObj puede estar vacío
+                        else:
                             json_data["data"] = []
                     
                     # Extraer data de manera segura
                     if json_data:
                         data = json_data.get("data")
-                        # Si data es None, devolver lista vacía para listas, None para objetos
-                        if data is None and isinstance(json_data, dict) and "success" in json_data:
+                        logger.debug(f"Data extraída antes de validación: {data} (type: {type(data)})")
+                        # Si data es None, devolver lista vacía para operaciones de lista
+                        # (el backend Java devuelve null cuando no hay resultados)
+                        if data is None:
                             data = []
+                            logger.debug("Data era None, convertido a lista vacía []")
+                        logger.debug(f"Data final: {data} (type: {type(data)})")
                         return {"success": True, "data": data}
-                    return {"success": True, "data": None}
+                    return {"success": True, "data": []}
                 except ValueError:
                     # Si no es JSON válido, devolver el texto
                     return {"success": True, "data": response.text}
@@ -210,7 +227,31 @@ class RESTClient:
 
             # Errores
             error_msg = response.text or f"Error HTTP {response.status_code}"
-            logger.warning(f"Error {response.status_code} en {method} {endpoint}: {error_msg}")
+
+            # Para los informes, un 404 simplemente significa que el backend
+            # aún no tiene esos endpoints. Lo tratamos como warning para no
+            # asustar al usuario: el frontend usará datos demo.
+            if endpoint.startswith("/informes/") and response.status_code == 404:
+                logger.warning(
+                    "Endpoint de informes no encontrado (%s). "
+                    "Se usarán datos demo en la ventana de Informes.",
+                    endpoint,
+                )
+            else:
+                logger.error(f"Error {response.status_code} en {method} {endpoint}: {error_msg}")
+            
+            # Intentar extraer el mensaje de error del JSON si está disponible
+            try:
+                error_json = response.json()
+                if isinstance(error_json, dict):
+                    # El backend puede devolver {"success": false, "data": {"error": "..."}}
+                    if "data" in error_json and isinstance(error_json["data"], dict):
+                        error_msg = error_json["data"].get("error", error_msg)
+                    elif "error" in error_json:
+                        error_msg = error_json["error"]
+            except:
+                pass  # Si no es JSON, usar el texto original
+            
             return {"success": False, "error": error_msg}
 
         except requests.exceptions.Timeout:
@@ -236,6 +277,76 @@ class RESTClient:
     def get_all(self, entity: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         """Obtiene todos los registros de una entidad"""
         return self._request("GET", f"/{entity}", params=params)
+    
+    def get(self, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
+        """
+        Realiza una petición GET genérica a cualquier endpoint.
+        
+        Args:
+            endpoint: Endpoint relativo (ej: "/informes/ventas-empleado")
+            params: Parámetros de consulta opcionales
+            
+        Returns:
+            Dict con 'success' y 'data' o 'error'
+        """
+        return self._request("GET", endpoint, params=params)
+    
+    # -----------------------------------------------------
+    # MÉTODOS ESPECÍFICOS POR ENTIDAD (con filtros)
+    # -----------------------------------------------------
+    def get_clientes(
+        self, 
+        cliente_id: Optional[int] = None,
+        nombre: Optional[str] = None,
+        email: Optional[str] = None,
+        telefono: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Obtiene clientes con filtros opcionales.
+        
+        Args:
+            cliente_id: ID específico (devuelve un solo cliente, tiene prioridad sobre filtros)
+            nombre: Filtro por nombre (búsqueda parcial, case-insensitive)
+            email: Filtro por email (búsqueda parcial, case-insensitive)
+            telefono: Filtro por teléfono (búsqueda parcial)
+            
+        Returns:
+            Dict con 'success' y 'data' (lista o objeto Cliente) o 'error'
+            
+        Ejemplos:
+            # Todos los clientes
+            api.get_clientes()
+            
+            # Por ID
+            api.get_clientes(cliente_id=1)
+            
+            # Filtrar por nombre
+            api.get_clientes(nombre="Juan")
+            
+            # Filtrar por email
+            api.get_clientes(email="example.com")
+            
+            # Combinar filtros (AND)
+            api.get_clientes(nombre="Juan", email="example")
+        """
+        params = {}
+        
+        # Si se especifica ID, tiene prioridad y se ignora el resto
+        if cliente_id:
+            params['id'] = cliente_id
+        else:
+            # Construir filtros opcionales
+            if nombre:
+                params['nombre'] = nombre
+            if email:
+                params['email'] = email
+            if telefono:
+                params['telefono'] = telefono
+        
+        logger.info(f"get_clientes - Parámetros: {params}")
+        result = self._request("GET", "/clientes", params=params if params else None)
+        logger.info(f"get_clientes - Resultado: success={result.get('success')}, data type={type(result.get('data'))}")
+        return result
 
     def get_by_id(self, entity: str, entity_id: int) -> Dict[str, Any]:
         """Obtiene un registro por ID usando query param (formato Java backend)"""
@@ -244,7 +355,11 @@ class RESTClient:
 
     def create(self, entity: str, payload: Dict) -> Dict[str, Any]:
         """Crea un nuevo registro"""
-        return self._request("POST", f"/{entity}", json=payload)
+        logger.info(f"create({entity}) - Payload: {payload}")
+        result = self._request("POST", f"/{entity}", json=payload)
+        logger.info(f"create({entity}) - Resultado: success={result.get('success')}, error={result.get('error')}")
+        logger.info(f"create({entity}) - Data recibida: {result.get('data')}")
+        return result
 
     def update(self, entity: str, entity_id: int, payload: Dict) -> Dict[str, Any]:
         """Actualiza un registro existente"""
@@ -265,12 +380,18 @@ class RESTClient:
         if entity == "pagos":
             return self._request("PUT", f"/{entity}", json=payload, params={"id_pago": entity_id})
         
-        # Para otros endpoints, agregar el ID al payload
+        # Para otros endpoints, agregar el ID al payload solo si no está ya presente
         payload_with_id = payload.copy()
         id_key = id_mapping.get(entity, f"id_{entity[:-1]}" if entity.endswith("s") else f"id_{entity}")
-        payload_with_id[id_key] = entity_id
+        # Solo agregar si no está ya presente (evitar duplicación)
+        if id_key not in payload_with_id:
+            payload_with_id[id_key] = entity_id
         
-        return self._request("PUT", f"/{entity}", json=payload_with_id)
+        logger.info(f"update({entity}) - Payload final: {payload_with_id}")
+        result = self._request("PUT", f"/{entity}", json=payload_with_id)
+        logger.info(f"update({entity}) - Resultado: success={result.get('success')}, error={result.get('error')}")
+        logger.info(f"update({entity}) - Data recibida: {result.get('data')}")
+        return result
 
     def delete(self, entity: str, entity_id: int) -> Dict[str, Any]:
         """Elimina un registro usando query param (formato Java backend)"""
@@ -282,129 +403,17 @@ class RESTClient:
     # ---------------------------------------------------------
     def get_dashboard_stats(self) -> Dict[str, Any]:
         """Obtiene estadísticas generales para admin/empleado."""
-        # El backend Java no tiene endpoint de dashboard/stats
-        # Calculamos las estadísticas desde los endpoints individuales
-        try:
-            stats = {}
-            
-            # Obtener conteos de cada entidad
-            clientes_res = self.get_all("clientes")
-            if clientes_res.get("success"):
-                clientes_data = clientes_res.get("data", [])
-                stats["clientes"] = len(clientes_data) if isinstance(clientes_data, list) else 0
-            
-            empleados_res = self.get_all("empleados")
-            if empleados_res.get("success"):
-                empleados_data = empleados_res.get("data", [])
-                stats["empleados"] = len(empleados_data) if isinstance(empleados_data, list) else 0
-            
-            productos_res = self.get_all("productos")
-            if productos_res.get("success"):
-                productos_data = productos_res.get("data", [])
-                stats["productos"] = len(productos_data) if isinstance(productos_data, list) else 0
-            
-            presupuestos_res = self.get_all("presupuestos")
-            if presupuestos_res.get("success"):
-                presupuestos_data = presupuestos_res.get("data", [])
-                stats["presupuestos"] = len(presupuestos_data) if isinstance(presupuestos_data, list) else 0
-            
-            facturas_res = self.get_all("facturas")
-            if facturas_res.get("success"):
-                facturas_data = facturas_res.get("data", [])
-                stats["facturas"] = len(facturas_data) if isinstance(facturas_data, list) else 0
-            
-            pagos_res = self.get_all("pagos")
-            if pagos_res.get("success"):
-                pagos_data = pagos_res.get("data", [])
-                stats["pagos"] = len(pagos_data) if isinstance(pagos_data, list) else 0
-            
-            return {"success": True, "data": stats}
-        except Exception as e:
-            logger.error(f"Error obteniendo estadísticas: {e}")
-            return {"success": False, "data": {}}
+        return self.helpers.get_dashboard_stats()
     
-    # ---------------------------------------------------------
-    # Métodos para Dashboard de Cliente
-    # ---------------------------------------------------------
     def get_my_facturas(self, cliente_id: Optional[int] = None) -> Dict[str, Any]:
         """Obtiene las facturas del cliente actual"""
-        if cliente_id is None:
-            cliente_id = self.user_id
-        
-        if cliente_id is None:
-            return {"success": False, "error": "No se pudo identificar el cliente"}
-        
-        # Obtener todas las facturas y filtrar por cliente
-        result = self.get_all("facturas")
-        if result.get("success") and result.get("data"):
-            facturas = result["data"]
-            # Asegurar que facturas es una lista
-            if not isinstance(facturas, list):
-                facturas = []
-            
-            # Filtrar facturas del cliente
-            # El backend Java devuelve facturas con cliente_pagador como objeto
-            my_facturas = []
-            for factura in facturas:
-                if not isinstance(factura, dict):
-                    continue
-                cliente_pagador = factura.get("cliente_pagador", {})
-                if isinstance(cliente_pagador, dict):
-                    if cliente_pagador.get("id_cliente") == cliente_id:
-                        my_facturas.append(factura)
-                elif cliente_pagador == cliente_id:
-                    my_facturas.append(factura)
-            
-            return {"success": True, "data": my_facturas}
-        
-        # Si no hay éxito o no hay data, devolver lista vacía
-        return {"success": True, "data": []}
+        return self.helpers.get_my_facturas(cliente_id)
     
     def get_my_pagos(self, cliente_id: Optional[int] = None) -> Dict[str, Any]:
         """Obtiene los pagos del cliente actual"""
-        if cliente_id is None:
-            cliente_id = self.user_id
-        
-        if cliente_id is None:
-            return {"success": False, "error": "No se pudo identificar el cliente"}
-        
-        # Obtener todas las facturas del cliente primero
-        facturas_res = self.get_my_facturas(cliente_id)
-        if not facturas_res.get("success"):
-            return {"success": True, "data": []}
-        
-        facturas = facturas_res.get("data")
-        # Asegurar que facturas es una lista
-        if facturas is None:
-            facturas = []
-        elif not isinstance(facturas, list):
-            facturas = []
-        
-        factura_ids = [f.get("id_factura") for f in facturas if isinstance(f, dict) and f.get("id_factura")]
-        
-        if not factura_ids:
-            return {"success": True, "data": []}
-        
-        # Obtener todos los pagos y filtrar por facturas del cliente
-        pagos_res = self.get_all("pagos")
-        if pagos_res.get("success") and pagos_res.get("data"):
-            pagos = pagos_res["data"]
-            # Asegurar que pagos es una lista
-            if not isinstance(pagos, list):
-                pagos = []
-            
-            my_pagos = []
-            for pago in pagos:
-                if not isinstance(pago, dict):
-                    continue
-                factura = pago.get("factura", {})
-                if isinstance(factura, dict):
-                    if factura.get("id_factura") in factura_ids:
-                        my_pagos.append(pago)
-                elif factura in factura_ids:
-                    my_pagos.append(pago)
-            
-            return {"success": True, "data": my_pagos}
-        
-        return {"success": True, "data": []}
+        return self.helpers.get_my_pagos(cliente_id)
+    
+    def get_roles_empleado(self) -> Dict[str, Any]:
+        """Obtiene todos los roles de empleado."""
+        return self.helpers.get_roles_empleado()
 

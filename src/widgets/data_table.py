@@ -5,6 +5,17 @@ Componente de tabla para mostrar datos
 import tkinter as tk
 from tkinter import ttk
 from typing import List, Dict, Optional, Callable
+import json
+
+
+def normalize_column_header(name: str) -> str:
+    """
+    Normaliza el nombre de una columna para mostrarlo como encabezado.
+    - Reemplaza guiones bajos por espacios
+    - Capitaliza la primera letra de cada palabra
+    - Ejemplo: "tipo_cliente" -> "Tipo Cliente"
+    """
+    return name.replace("_", " ").title()
 
 
 class DataTable(ttk.Frame):
@@ -41,21 +52,60 @@ class DataTable(ttk.Frame):
         table_frame = ttk.Frame(self)
         table_frame.pack(fill=tk.BOTH, expand=True)
         
+        # Configurar estilo para separadores entre columnas
+        style = ttk.Style()
+        # Estilo para las celdas de datos - usar colores visibles
+        style.configure("Treeview", 
+                       background="#f5f5f5",
+                       foreground="#000000",  # Negro para texto
+                       fieldbackground="#f5f5f5",
+                       borderwidth=0,
+                       rowheight=25)
+        # Estilo para los encabezados con separadores
+        style.configure("Treeview.Heading",
+                        background="#e0e0e0",
+                        foreground="#000000",  # Negro para texto
+                        relief="flat",
+                        borderwidth=0,
+                        padding=5)
+        style.map("Treeview.Heading",
+                 background=[("active", "#d0d0d0")])
+        # Mapear colores de selección
+        style.map("Treeview",
+                 background=[("selected", "#4a9eff")],
+                 foreground=[("selected", "#ffffff")])
+        
+        # Crear un estilo personalizado para separadores
+        # Usar un tag para las celdas que simule separadores
+        style.layout("Treeview", [
+            ('Treeview.treearea', {'sticky': 'nswe'})
+        ])
+        
         # Treeview
         column_names = [col["name"] for col in self.columns]
-        self.tree = ttk.Treeview(table_frame, columns=column_names, show="headings", selectmode="browse")
+        self.tree = ttk.Treeview(table_frame, columns=column_names, show="headings", selectmode="browse", style="Treeview")
         
-        # Configurar columnas
+        # Configurar columnas con separadores visuales
         for col in self.columns:
-            self.tree.heading(col["name"], text=col["name"], 
+            # Usar label personalizado si existe, sino normalizar el nombre
+            header_text = col.get("label") or normalize_column_header(col["name"])
+            self.tree.heading(col["name"], text=header_text, 
                             command=lambda c=col["name"]: self._sort_by_column(c))
+            # Centrar por defecto si no se especifica anchor
+            anchor = col.get("anchor", "center")
+            # Añadir padding para separación visual
             self.tree.column(col["name"], width=col.get("width", 100), 
-                           anchor=col.get("anchor", "w"))
+                           anchor=anchor, minwidth=50)
+        
+        # Configurar tags para separadores visuales (usando colores alternativos)
+        self.tree.tag_configure("evenrow", background="#f9f9f9", foreground="#000000")
+        self.tree.tag_configure("oddrow", background="#ffffff", foreground="#000000")
         
         # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         
+        # Treeview
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
@@ -77,8 +127,11 @@ class DataTable(ttk.Frame):
     
     def set_data(self, data: List[Dict]):
         """Establece los datos de la tabla"""
+        # Asegurar que data no sea None
+        if data is None:
+            data = []
         self.data = data
-        self.filtered_data = data.copy()
+        self.filtered_data = data.copy() if data else []
         self.current_page = 1
         self._refresh_table()
     
@@ -108,7 +161,7 @@ class DataTable(ttk.Frame):
                 key=lambda x: str(x.get(column, "")).lower(),
                 reverse=self.sort_reverse
             )
-        except:
+        except Exception:
             pass
         
         self._refresh_table()
@@ -125,17 +178,21 @@ class DataTable(ttk.Frame):
         end_idx = start_idx + self.items_per_page
         page_data = self.filtered_data[start_idx:end_idx]
         
-        # Insertar datos
-        for row in page_data:
+        # Insertar datos con tags para separadores y colores alternados
+        for idx, row in enumerate(page_data):
             values = [str(row.get(col["name"], "")) for col in self.columns]
-            self.tree.insert("", tk.END, values=values, tags=(row,))
+            # Convertir el diccionario a JSON string para almacenarlo en los tags
+            # Tkinter solo acepta strings en los tags
+            json_str = json.dumps(row, ensure_ascii=False)
+            # Alternar colores de fila para mejor legibilidad
+            row_tag = "evenrow" if idx % 2 == 0 else "oddrow"
+            self.tree.insert("", tk.END, values=values, tags=(json_str, row_tag))
         
         # Actualizar label de paginación
         self.page_label.config(text=f"Página {self.current_page} de {total_pages} (Total: {len(self.filtered_data)})")
     
     def _prev_page(self):
         """Página anterior"""
-        total_pages = max(1, (len(self.filtered_data) + self.items_per_page - 1) // self.items_per_page)
         if self.current_page > 1:
             self.current_page -= 1
             self._refresh_table()
@@ -154,7 +211,13 @@ class DataTable(ttk.Frame):
             item = self.tree.item(selection[0])
             tags = item.get("tags", [])
             if tags:
-                self.on_select(tags[0])
+                try:
+                    # Parsear el JSON string almacenado en los tags
+                    row_data = json.loads(tags[0])
+                    self.on_select(row_data)
+                except json.JSONDecodeError:
+                    # Si hay error al parsear JSON, ignorar
+                    pass
     
     def _on_double_click(self, event):
         """Maneja el doble clic"""
@@ -163,7 +226,13 @@ class DataTable(ttk.Frame):
             item = self.tree.item(selection[0])
             tags = item.get("tags", [])
             if tags:
-                self.on_double_click(tags[0])
+                try:
+                    # Parsear el JSON string almacenado en los tags
+                    row_data = json.loads(tags[0])
+                    self.on_double_click(row_data)
+                except json.JSONDecodeError:
+                    # Si hay error al parsear JSON, ignorar
+                    pass
     
     def get_selected(self) -> Optional[Dict]:
         """Obtiene el elemento seleccionado"""
@@ -172,10 +241,16 @@ class DataTable(ttk.Frame):
             item = self.tree.item(selection[0])
             tags = item.get("tags", [])
             if tags:
-                return tags[0]
+                try:
+                    # Parsear el JSON string almacenado en los tags
+                    return json.loads(tags[0])
+                except json.JSONDecodeError:
+                    # Si hay error al parsear JSON, devolver None
+                    return None
         return None
     
     def clear_selection(self):
         """Limpia la selección"""
         self.tree.selection_remove(self.tree.selection())
+    
 

@@ -8,6 +8,9 @@ from src.reports.report_loader import ReportLoader
 from src.reports.chart_factory import ChartFactory
 from src.reports.graphic_panel import GraphicPanel
 from src.reports.zoom_manager import ZoomManager
+from src.ui.reports.report_definitions import (
+    get_report_options, get_loader_method_name, get_chart_type, get_chart_config
+)
 
 from src.reports.exporters.pdf_exporter import PDFExporter
 from src.reports.exporters.image_exporter import ImageExporter
@@ -24,14 +27,16 @@ class ReportsWindow(ctk.CTkFrame):
         self.current_figure = None
         self.active_tab = None
         self.canvas_widget = None
+        self.last_data = None
+        self.last_title = None
 
         # Zoom Manager
         self.zoom = ZoomManager()
 
         self._build_ui()
 
-        # Cargar una pestaña inicial por defecto
-        self._switch_tab("Ventas por empleado")
+        # Cargar una pestaña inicial por defecto (después de que los widgets estén creados)
+        self.after(100, lambda: self._switch_tab("Ventas por empleado"))
 
     # ================================================================
     # UI PRINCIPAL
@@ -39,23 +44,62 @@ class ReportsWindow(ctk.CTkFrame):
     def _build_ui(self):
 
         # -------------------------
-        # TITULO
+        # TITULO + ACCIONES (arriba)
         # -------------------------
         title_frame = ctk.CTkFrame(self, fg_color="transparent")
         title_frame.pack(fill="x", pady=4)
 
+        # Izquierda: título y selector de informe
+        left_title = ctk.CTkFrame(title_frame, fg_color="transparent")
+        left_title.pack(side="left", fill="x", expand=True)
+
         ctk.CTkLabel(
-            title_frame,
+            left_title,
             text="Informes y Gráficos",
             font=ctk.CTkFont(size=22, weight="bold")
         ).pack(side="left")
 
         ctk.CTkButton(
-            title_frame,
+            left_title,
             text="Generar informe personalizado ▼",
             command=self._open_popover,
             corner_radius=6
         ).pack(side="left", padx=10)
+
+        # Derecha: acciones (exportar / actualizar / zoom)
+        actions_frame = ctk.CTkFrame(title_frame, fg_color="transparent")
+        actions_frame.pack(side="right")
+
+        ctk.CTkButton(
+            actions_frame,
+            text="Exportar PDF",
+            width=120,
+            command=self._export_pdf
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            actions_frame,
+            text="Exportar PNG",
+            width=120,
+            command=self._export_png
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            actions_frame,
+            text="Actualizar",
+            width=120,
+            command=lambda: self._switch_tab(self.active_tab)
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            actions_frame, text="-", width=40,
+            command=self._zoom_out
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            actions_frame, text="+", width=40,
+            command=self._zoom_in
+        ).pack(side="left", padx=2)
 
         # -------------------------
         # PERIODO DE TIEMPO
@@ -81,51 +125,19 @@ class ReportsWindow(ctk.CTkFrame):
             command=self._generate_from_period
         ).pack(side="left", padx=10)
 
+        # Título del informe generado
+        self.report_title_label = ctk.CTkLabel(
+            self,
+            text="",
+            font=ctk.CTkFont(size=18, weight="bold")
+        )
+        self.report_title_label.pack(fill="x", pady=(0, 4))
+
         # ================================================================
         # SCROLLABLE GRAPH AREA
         # ================================================================
         self.scroll_area = CTkScrollableFrame(self)
         self.scroll_area.pack(fill="both", expand=True, padx=10, pady=10)
-
-        # ================================================================
-        # FOOTER FIJO (PDF, PNG, Refresh, Zoom)
-        # ================================================================
-        footer = ctk.CTkFrame(self, fg_color="transparent")
-        footer.pack(fill="x", side="bottom", pady=4)
-        footer.pack_propagate(False)
-
-        # IZQUIERDA
-        ctk.CTkButton(
-            footer,
-            text="Exportar PDF",
-            width=130,
-            command=self._export_pdf
-        ).pack(side="left", padx=5)
-
-        ctk.CTkButton(
-            footer,
-            text="Exportar PNG",
-            width=130,
-            command=self._export_png
-        ).pack(side="left", padx=5)
-
-        ctk.CTkButton(
-            footer,
-            text="Actualizar",
-            width=130,
-            command=lambda: self._switch_tab(self.active_tab)
-        ).pack(side="left", padx=5)
-
-        # DERECHA
-        ctk.CTkButton(
-            footer, text="-", width=40,
-            command=self._zoom_out
-        ).pack(side="right", padx=5)
-
-        ctk.CTkButton(
-            footer, text="+", width=40,
-            command=self._zoom_in
-        ).pack(side="right")
 
     # ================================================================
     # POPOVER PERSONALIZADO
@@ -138,13 +150,7 @@ class ReportsWindow(ctk.CTkFrame):
         self.popover.overrideredirect(True)
         self.popover.configure(fg_color="#232323")
 
-        options = [
-            "Ventas por empleado",
-            "Estado presupuestos",
-            "Facturación mensual",
-            "Ventas por producto",
-            "Ratio conversión"
-        ]
+        options = get_report_options()
 
         for name in options:
             ctk.CTkButton(
@@ -164,26 +170,27 @@ class ReportsWindow(ctk.CTkFrame):
     # ================================================================
     def _switch_tab(self, name, desde=None, hasta=None):
         self.active_tab = name
-    # Si no se pasan fechas, usar las del datepicker
-        if not desde: 
+        # Si no se pasan fechas, usar las del datepicker
+        if not desde and hasattr(self, 'fecha_desde'):
             desde = self.fecha_desde.get()
-        if not hasta:
+        if not hasta and hasattr(self, 'fecha_hasta'):
             hasta = self.fecha_hasta.get()
-        # Llamar informe adecuado
-        loader = self.loader
-        # Selección del informe usando fechas
-        if name == "Ventas por empleado":
-            data = loader.ventas_por_empleado(desde, hasta)
-        elif name == "Estado presupuestos":
-            data = loader.estados_presupuestos(desde, hasta)
-        elif name == "Facturación mensual":
-            data = loader.facturacion_mensual(desde, hasta)
-        elif name == "Ventas por producto":
-            data = loader.ventas_por_producto(desde, hasta)
-        elif name == "Ratio conversión":
-            data = loader.ratio_conversion(desde, hasta)
-        else:
+        
+        # Obtener método del loader desde las definiciones
+        method_name = get_loader_method_name(name)
+        if not method_name:
             data = None
+        else:
+            # Llamar método del loader dinámicamente
+            loader_method = getattr(self.loader, method_name, None)
+            if loader_method:
+                data = loader_method(desde, hasta)
+            else:
+                data = None
+        
+        # Guardar última data y título para zoom/export
+        self.last_data = data
+        self.last_title = name
         # Renderizar gráfico
         self._render_report(data, name)
 
@@ -191,9 +198,12 @@ class ReportsWindow(ctk.CTkFrame):
     # GENERAR POR PERIODO
     # ================================================================
     def _generate_from_period(self):
+        if not hasattr(self, 'fecha_desde') or not hasattr(self, 'fecha_hasta'):
+            return
         desde = self.fecha_desde.get()
         hasta = self.fecha_hasta.get()
-        self._switch_tab(self.active_tab, desde, hasta)
+        if self.active_tab:
+            self._switch_tab(self.active_tab, desde, hasta)
 
 
     # ================================================================
@@ -202,58 +212,70 @@ class ReportsWindow(ctk.CTkFrame):
     def _render_report(self, data, title):
 
         # El área scrolleable se limpia automáticamente por GraphicPanel
-        desde = self.fecha_desde.get()
-        hasta = self.fecha_hasta.get()
+        desde = None
+        hasta = None
+        if hasattr(self, 'fecha_desde') and hasattr(self, 'fecha_hasta'):
+            desde = self.fecha_desde.get()
+            hasta = self.fecha_hasta.get()
 
         if not data:
             fig = ChartFactory.empty("Sin datos disponibles")
         else:
-            if title == "Ventas por empleado":
-                labels = [x["nombre"] for x in data]
-                values = [x["total"] for x in data]
-                fig = ChartFactory.bar_chart(labels, values, title, "Total (€)")
+            # Obtener configuración del informe desde las definiciones
+            chart_type = get_chart_type(title)
+            chart_config = get_chart_config(title)
+            
+            if not chart_type or not chart_config:
+                fig = ChartFactory.empty("Configuración de informe no encontrada")
+            else:
+                # Extraer datos usando la función extractor
+                data_extractor = chart_config.get("data_extractor")
+                if data_extractor:
+                    labels, values = data_extractor(data)
+                else:
+                    labels, values = [], []
+                
+                # Crear gráfico según el tipo
+                if chart_type == "bar":
+                    xlabel = chart_config.get("xlabel", "")
+                    ylabel = chart_config.get("ylabel", "")
+                    fig = ChartFactory.bar_chart(labels, values, title, ylabel or xlabel)
+                
+                elif chart_type == "pie":
+                    fig = ChartFactory.pie_chart(labels, values, title)
+                
+                elif chart_type == "line":
+                    xlabel = chart_config.get("xlabel", "")
+                    ylabel = chart_config.get("ylabel", "")
+                    fig = ChartFactory.line_chart(labels, values, title, xlabel, ylabel)
+                
+                else:
+                    fig = ChartFactory.empty(f"Tipo de gráfico '{chart_type}' no soportado")
 
-            elif title == "Estado presupuestos":
-                fig = ChartFactory.pie_chart(
-                    labels=list(data.keys()),
-                    values=list(data.values()),
-                    title=title
-                )
+        # Texto del periodo dentro del gráfico y título descriptivo
+        subtitle = title
+        if desde and hasta:
+            periodo_txt = f"{desde} → {hasta}"
+            fig.text(
+                0.01, 0.01,
+                f"Periodo: {periodo_txt}",
+                fontsize=10
+            )
+            subtitle = f"{title} ({periodo_txt})"
 
-            elif title == "Facturación mensual":
-                meses = sorted(data.keys())
-                fig = ChartFactory.line_chart(
-                    labels=meses,
-                    values=[data[m] for m in meses],
-                    title=title,
-                    xlabel="Mes",
-                    ylabel="€"
-                )
+        # Actualizar etiqueta de título de informe en la ventana
+        if hasattr(self, "report_title_label"):
+            self.report_title_label.configure(text=subtitle)
 
-            elif title == "Ventas por producto":
-                labels = [x["producto"] for x in data]
-                values = [x["total"] for x in data]
-                fig = ChartFactory.bar_chart(labels, values, title, "Total (€)")
-
-            elif title == "Ratio conversión":
-                fig = ChartFactory.pie_chart(
-                    labels=list(data.keys()),
-                    values=list(data.values()),
-                    title=title
-                )
-
-        # Texto del periodo dentro del gráfico
-        fig.text(
-            0.01, 0.01,
-            f"Periodo: {desde} → {hasta}",
-            fontsize=10
-        )
-
-        # Guardar figura actual
-        fig.set_size_inches(8, 4)
+        # Guardar figura actual con tamaño dependiente del zoom
+        self.current_figure = fig
+        scale = getattr(self.zoom, "scale", 1.0)
+        fig.set_size_inches(8 * scale, 4 * scale)
 
         # Mostrar usando GraphicPanel avanzado
-        self.canvas_widget = GraphicPanel.display(self.scroll_area, fig)
+        # CTkScrollableFrame tiene un inner_frame donde va el contenido
+        parent_frame = self.scroll_area.inner_frame if hasattr(self.scroll_area, 'inner_frame') else self.scroll_area
+        self.canvas_widget = GraphicPanel.display(parent_frame, fig)
 
     # ================================================================
     # EXPORTAR
@@ -262,9 +284,18 @@ class ReportsWindow(ctk.CTkFrame):
         if not self.current_figure:
             return messagebox.showwarning("Error", "No hay informe generado.")
 
+        # Nombre sugerido: Informe - <titulo> - <fecha>.pdf
+        base_name = self.last_title or "Informe"
+        desde = self.fecha_desde.get() if hasattr(self, "fecha_desde") else ""
+        hasta = self.fecha_hasta.get() if hasattr(self, "fecha_hasta") else ""
+        if desde and hasta:
+            base_name = f"{base_name} - {desde}_a_{hasta}"
+        initialfile = f"{base_name}.pdf"
+
         path = filedialog.asksaveasfilename(
             defaultextension=".pdf",
-            filetypes=[("PDF", "*.pdf")]
+            filetypes=[("PDF", "*.pdf")],
+            initialfile=initialfile
         )
         if path:
             PDFExporter.export(self.current_figure, path)
@@ -273,9 +304,17 @@ class ReportsWindow(ctk.CTkFrame):
         if not self.current_figure:
             return messagebox.showwarning("Error", "No hay informe generado.")
 
+        base_name = self.last_title or "Informe"
+        desde = self.fecha_desde.get() if hasattr(self, "fecha_desde") else ""
+        hasta = self.fecha_hasta.get() if hasattr(self, "fecha_hasta") else ""
+        if desde and hasta:
+            base_name = f"{base_name} - {desde}_a_{hasta}"
+        initialfile = f"{base_name}.png"
+
         path = filedialog.asksaveasfilename(
             defaultextension=".png",
-            filetypes=[("PNG", "*.png")]
+            filetypes=[("PNG", "*.png")],
+            initialfile=initialfile
         )
         if path:
             ImageExporter.export(self.current_figure, path)
@@ -284,25 +323,12 @@ class ReportsWindow(ctk.CTkFrame):
     # ZOOM REAL
     # ================================================================
     def _zoom_in(self):
-        if GraphicPanel.current_canvas:
-            self.zoom.zoom_in()
-            self.zoom.apply_zoom(GraphicPanel.current_canvas)
-            return
-
+        # Actualizar factor de zoom y volver a renderizar el informe actual
         self.zoom.zoom_in()
-        self.zoom.apply_zoom(self.current_figure)
-
-        # Redibujar figura
-        self._switch_tab(self.active_tab)
+        if self.last_title is not None:
+            self._render_report(self.last_data, self.last_title)
 
     def _zoom_out(self):
-        if GraphicPanel.current_canvas:
-            self.zoom.zoom_out()
-            self.zoom.apply_zoom(GraphicPanel.current_canvas)
-            return
-
         self.zoom.zoom_out()
-        self.zoom.apply_zoom(self.current_figure)
-
-        # Redibujar figura
-        self._switch_tab(self.active_tab)
+        if self.last_title is not None:
+            self._render_report(self.last_data, self.last_title)

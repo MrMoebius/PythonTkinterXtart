@@ -15,7 +15,7 @@ class CTkDatePicker(ctk.CTkFrame):
         self.width = width
         self.selected_date = datetime.now()
 
-        # Campo de texto (readonly)
+        # Campo de texto (editable)
         self.entry = ctk.CTkEntry(
             self,
             width=self.width,
@@ -23,6 +23,8 @@ class CTkDatePicker(ctk.CTkFrame):
         )
         self.entry.pack(fill="x")
         self.entry.bind("<Button-1>", self._open_calendar)
+        # Permitir escribir manualmente y validar al salir del campo
+        self.entry.bind("<FocusOut>", self._on_manual_edit)
 
         # Inicializar texto
         self._update_entry()
@@ -159,15 +161,24 @@ class CTkDatePicker(ctk.CTkFrame):
     # Actualizar campo de texto
     # ------------------------------------------------------------------
     def _update_entry(self):
-        # Permite escritura temporalmente
-        self.entry.configure(state="normal")
-
-        # Actualiza el texto visible
+        # Actualiza el texto visible manteniendo el campo editable
         self.entry.delete(0, "end")
         self.entry.insert(0, self.get())
-
-        # Bloquea edición manual si NO quieres permitir escribir
-        self.entry.configure(state="readonly")
+    
+    def _on_manual_edit(self, event=None):
+        """
+        Permite que el usuario escriba manualmente una fecha en formato YYYY-MM-DD.
+        Si el formato es incorrecto, se restaura la fecha previa.
+        """
+        text = self.entry.get().strip()
+        if not text:
+            return
+        try:
+            new_date = datetime.strptime(text, "%Y-%m-%d")
+            self.selected_date = new_date
+        except ValueError:
+            # Formato inválido → restaurar valor anterior
+            self._update_entry()
 
 
     # ------------------------------------------------------------------

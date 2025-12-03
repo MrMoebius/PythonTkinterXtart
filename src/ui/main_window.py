@@ -23,29 +23,42 @@ class MainWindow:
         # user_info puede venir como None si no hay backend
         self.user_info = user_info or {}
 
+        # Debug: Log user_info recibido
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"user_info recibido: {self.user_info}")
+        
         # Determinar tipo y rol del usuario
-        # El backend Java devuelve: {"tipo": "empleado"|"cliente", "rol": "admin"|"comercial"|...}
+        # El backend Java devuelve: {"tipo": "empleado"|"cliente", "rol": "ADMIN"|"COMERCIAL"|...}
         tipo = (self.user_info.get("tipo") or "cliente").lower()
-        rol = (self.user_info.get("rol") or "").lower()
+        rol_raw = self.user_info.get("rol") or ""
+        rol = rol_raw.upper().strip()  # Convertir a mayúsculas y quitar espacios para comparación
+        
+        logger.info(f"tipo: {tipo}, rol_raw: {rol_raw}, rol: {rol}")
 
         # Lógica de permisos:
         # - Si tipo == "empleado" → es empleado (independientemente del rol)
         # - Si tipo == "cliente" → es cliente
-        # - Si rol == "admin" → es admin (además de ser empleado)
+        # - Si rol contiene "ADMIN" (case-insensitive) → es admin (además de ser empleado)
         self.is_cliente = tipo == "cliente"
         self.is_empleado = tipo == "empleado"
-        self.is_admin = tipo == "empleado" and rol == "admin"
+        self.is_admin = tipo == "empleado" and rol == "ADMIN"
+        
+        logger.info(f"is_cliente: {self.is_cliente}, is_empleado: {self.is_empleado}, is_admin: {self.is_admin}")
         
         # Guardar rol para referencia
-        self.role = rol.upper() if rol else "CLIENTE"
+        self.role = rol if rol else "CLIENTE"
 
         # Username seguro
+        user_id = self.user_info.get("id") or self.user_info.get("id_empleado") or self.user_info.get("id_cliente")
         self.username = (
             self.user_info.get("nombre")
             or self.user_info.get("username")
             or self.user_info.get("email")
-            or f"ID-{self.user_info.get('id', '?')}"
+            or (f"ID-{user_id}" if user_id else "Usuario")
         )
+        
+        logger.info(f"username final: {self.username}")
 
         self.current_frame = None
 
@@ -182,6 +195,7 @@ class MainWindow:
         else:
             options.extend([
                 ("Mi Perfil", self.show_my_profile),
+                ("Mis Presupuestos", self.show_my_presupuestos),
                 ("Mis Facturas", self.show_my_facturas),
                 ("Mis Pagos", self.show_my_pagos),
             ])
@@ -354,6 +368,11 @@ class MainWindow:
         if not self.is_cliente:
             return self._no_access()
         self._load_window(lambda p, a: PagosWindow(p, a, client_mode=True), "Mis Pagos")
+
+    def show_my_presupuestos(self):
+        if not self.is_cliente:
+            return self._no_access()
+        self._load_window(lambda p, a: PresupuestosWindow(p, a, client_mode=True), "Mis Presupuestos")
 
 
     # ---------------------------------------------------------

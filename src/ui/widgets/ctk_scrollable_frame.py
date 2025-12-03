@@ -33,6 +33,9 @@ class CTkScrollableFrame(ctk.CTkFrame):
         self.inner_frame.bind("<Configure>", self._on_frame_configure)
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
+        # Scroll con rueda del ratón (Windows / macOS)
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
     # Ajustar scroll region
     def _on_frame_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -41,3 +44,9 @@ class CTkScrollableFrame(ctk.CTkFrame):
     def _on_canvas_configure(self, event):
         canvas_width = event.width
         self.canvas.itemconfig(self.frame_id, width=canvas_width)
+
+    # Scroll vertical con la rueda del ratón
+    def _on_mousewheel(self, event):
+        # Delta suele ser múltiplo de 120 en Windows
+        delta = int(-1 * (event.delta / 120))
+        self.canvas.yview_scroll(delta, "units")
