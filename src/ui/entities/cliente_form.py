@@ -30,7 +30,7 @@ def abrir_formulario_cliente(
         api: Instancia de RESTClient para hacer llamadas al backend
         item: Diccionario con datos del cliente a editar (None para crear nuevo)
         titulo: Título de la ventana (por defecto "Nuevo Cliente" o "Editar Cliente")
-        tipo_cliente_fijo: Si se especifica ("persona" o "empresa"), el tipo no se puede cambiar
+        tipo_cliente_fijo: Si se especifica ("PARTICULAR" o "EMPRESA"), el tipo no se puede cambiar
         on_success: Callback que se ejecuta cuando el cliente se guarda exitosamente.
                    Recibe el diccionario del cliente creado/actualizado.
         empleado_responsable: ID del empleado responsable (se asigna automáticamente si no se especifica)
@@ -75,7 +75,7 @@ def abrir_formulario_cliente(
             "name": "tipo_cliente",
             "label": "Tipo Cliente",
             "type": "select",
-            "options": ["Persona", "Empresa"],
+            "options": ["PARTICULAR", "EMPRESA"],
             "required": False
         })
     
@@ -164,9 +164,14 @@ def abrir_formulario_cliente(
             if value and str(value).strip() and key in ["nombre", "email", "telefono", "tipo_cliente"] and key not in exclude_fields_list:
                 data[key] = str(value).strip()
 
-        # Si tipo_cliente está fijo, agregarlo a los datos
+        # Si tipo_cliente está fijo, agregarlo a los datos (normalizar a mayúsculas)
         if tipo_cliente_fijo:
-            data["tipo_cliente"] = tipo_cliente_fijo.lower()
+            # Normalizar: "persona" -> "PARTICULAR", "empresa" -> "EMPRESA"
+            tipo_normalizado = tipo_cliente_fijo.upper()
+            if tipo_normalizado == "PERSONA":
+                data["tipo_cliente"] = "PARTICULAR"
+            else:
+                data["tipo_cliente"] = tipo_normalizado
 
         # Crear o actualizar
         if item is None:

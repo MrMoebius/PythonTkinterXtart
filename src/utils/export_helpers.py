@@ -27,12 +27,35 @@ class DocumentExporter:
         # Configurar eje
         ax.axis('off')
     
-    def add_logo(self, logo_path: str = "src/Images/XtartLogo.png"):
-        """Añade el logo de la empresa si existe."""
-        if os.path.exists(logo_path):
-            import matplotlib.image as mpimg
-            logo = mpimg.imread(logo_path)
-            self.ax.imshow(logo, extent=(0.02, 0.18, 0.915, 0.985), aspect='auto')
+    def add_logo(self, logo_path: str = "src/Images/XtartLogo.png", position: str = "top_right"):
+        """
+        Añade el logo en un eje independiente para evitar distorsión.
+        position: "top_left" o "top_right"
+        """
+        import matplotlib.image as mpimg
+
+        if not os.path.exists(logo_path):
+            return
+
+        logo = mpimg.imread(logo_path)
+
+        # Tamaño del logo: porcentaje del ancho/alto de la figura
+        logo_width = 0.10     # 10% del ancho del A4
+        logo_height = 0.10    # 10% del alto del A4
+
+        # Posiciones absolutas en la FIGURA (no en el eje principal)
+        if position == "top_right":
+            x0 = 0.88   # 88% -> esquina derecha
+            y0 = 0.83   # 83% -> arriba
+        else:
+            x0 = 0.02
+            y0 = 0.83
+
+        # Crear un eje nuevo exclusivo para el logo
+        ax_logo = self.fig.add_axes([x0, y0, logo_width, logo_height])
+        ax_logo.imshow(logo)
+        ax_logo.axis("off")
+
     
     def add_main_title(self, title: str, subtitle: str = None):
         """Añade título principal y subtítulo centrados."""
@@ -97,12 +120,13 @@ class DocumentExporter:
 
 def create_document_base() -> tuple:
     """
-    Crea la base del documento (figura y eje).
+    Crea la base del documento (figura y eje) en formato A4 horizontal.
     
     Returns:
         (fig, ax) - Figura y eje de matplotlib
     """
-    fig = Figure(figsize=(8.5, 11), dpi=100)  # Tamaño A4
+    # A4 horizontal en pulgadas: 11.69 x 8.27 (ancho x alto)
+    fig = Figure(figsize=(11.69, 8.27), dpi=120)
     ax = fig.add_subplot(111)
     return fig, ax
 

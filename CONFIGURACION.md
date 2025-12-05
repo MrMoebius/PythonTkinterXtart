@@ -1,58 +1,78 @@
 # Configuración del Cliente CRM XTART
 
-## Modos de Operación
-
-El cliente soporta dos modos de operación:
-
-### Modo Real (Backend Java)
+## Configuración del Backend
 
 El cliente está configurado para conectarse al backend Java en:
 ```
-http://localhost:8080/democrudapi
+http://localhost:8080/crudxtart_war
 ```
 
-Para cambiar la URL del backend, edite el archivo `src/api/rest_client.py`:
+### Cambiar la URL del Backend
+
+Para cambiar la URL del backend, puede hacerlo de dos formas:
+
+**Opción 1: Variable de entorno (recomendado)**
+```bash
+export API_BASE_URL="http://localhost:8080/crudxtart_war"
+python main.py
+```
+
+**Opción 2: Editar el archivo de configuración**
+
+Edite el archivo `src/utils/settings.py`:
 
 ```python
-BASE_URL = "http://localhost:8080/democrudapi"
+API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8080/crudxtart_war")
 ```
 
-Cambie esta URL por la dirección de su servidor.
+Cambie el valor por defecto por la dirección de su servidor.
 
 **Ejecución**:
 ```bash
 python main.py
 ```
 
-### Modo Demo (Datos Locales)
-
-El modo demo permite usar la aplicación sin backend, leyendo datos desde archivos JSON locales en `demo_data/`.
-
-**Ejecución**:
-```bash
-python main.py --demo
-```
-
-**Configuración de datos demo**:
-- Los datos se encuentran en `demo_data/*.json`
-- El archivo `demo_data/login.json` contiene los usuarios disponibles
-- Los cambios no se guardan en modo demo (solo lectura)
-
 ## Estructura de Respuesta del Backend
 
 El cliente espera que el backend devuelva respuestas en formato JSON con la siguiente estructura:
 
 ### Login
+El backend devuelve una respuesta con el siguiente formato:
 ```json
 {
-  "token": "jwt_token_here",
-  "id": 1,
-  "rol": "EMPLEADO" | "CLIENTE",
-  "username": "usuario"
+  "success": true,
+  "data": {
+    "id": 1,
+    "rol": "ADMIN" | "EMPLEADO" | "CLIENTE",
+    "tipo": "empleado" | "cliente",
+    "nombre": "Nombre del usuario",
+    "email": "usuario@email.com",
+    "token": "jwt_token_here"  // Opcional
+  }
 }
 ```
 
+**Nota**: El cliente también soporta el formato antiguo `{"success": true, "dataObj": {...}}` para compatibilidad.
+
 ### Lista de Entidades
+El backend puede devolver listas en dos formatos:
+
+**Formato estándar (recomendado)**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "campo1": "valor1",
+      "campo2": "valor2"
+    },
+    ...
+  ]
+}
+```
+
+**Formato directo (también soportado)**:
 ```json
 [
   {
@@ -67,11 +87,16 @@ El cliente espera que el backend devuelva respuestas en formato JSON con la sigu
 ### Entidad Individual
 ```json
 {
-  "id": 1,
-  "campo1": "valor1",
-  "campo2": "valor2"
+  "success": true,
+  "data": {
+    "id": 1,
+    "campo1": "valor1",
+    "campo2": "valor2"
+  }
 }
 ```
+
+**Nota**: El cliente también soporta el formato antiguo `{"success": true, "dataObj": {...}}` para compatibilidad. Si `data` es `null`, se convierte automáticamente a lista vacía `[]`.
 
 ### Errores
 El cliente maneja códigos de estado HTTP:
@@ -81,21 +106,19 @@ El cliente maneja códigos de estado HTTP:
 
 ## Autenticación
 
-### Modo Real
+El cliente soporta autenticación mediante sesiones HTTP. El backend Java utiliza cookies (JSESSIONID) para mantener la sesión.
 
-El cliente soporta autenticación basada en tokens JWT. El token se envía en el header:
+El login se realiza mediante:
+- Endpoint: `POST /auth/login`
+- Payload: `{"email": "usuario", "password": "contraseña"}`
+- Respuesta: `{"success": true, "data": {"id": 1, "rol": "ADMIN", "tipo": "empleado", ...}}`
+
+Si el backend devuelve un token JWT, este se almacena y se envía en el header:
 ```
 Authorization: Bearer {token}
 ```
 
 Si su backend usa otro método de autenticación, modifique el método `login()` en `src/api/rest_client.py`.
-
-### Modo Demo
-
-En modo demo, la autenticación es simplificada:
-- No requiere contraseña real
-- Los usuarios se definen en `demo_data/login.json`
-- El formato es: `{"username": {"id": 1, "rol": "EMPLEADO", "token": "demo_token"}}`
 
 ## Campos de Entidades
 
@@ -148,11 +171,14 @@ Edite `src/utils/styles.py` para personalizar colores y estilos adicionales.
 
 ### Añadir Validaciones
 
-Modifique `src/components/validated_entry.py` para añadir nuevos tipos de validación. Los tipos actuales incluyen:
-- `email`: Validación de formato de email
-- `phone`: Validación de teléfono
-- `date`: Validación de fecha (YYYY-MM-DD)
-- `number`: Validación numérica
+Modifique `src/utils/validators.py` para añadir nuevas funciones de validación. Los tipos actuales incluyen:
+- `validate_email()`: Validación de formato de email
+- `validate_phone()`: Validación de teléfono
+- `validate_date()`: Validación de fecha (YYYY-MM-DD)
+- `validate_number()`: Validación numérica
+- `validate_required()`: Validación de campos obligatorios
+
+Y use en `src/widgets/validated_entry.py` añadiendo el caso en `validate_input()`.
 
 ### Modificar Columnas de Tablas
 
@@ -160,25 +186,24 @@ Edite las ventanas de entidades en `src/ui/entities/` para cambiar las columnas 
 
 ### Configurar Informes
 
-Los informes se configuran en `src/ui/reports_window.py`:
-- Añadir nuevos gráficos en `_load_reports()`
+Los informes se configuran en `src/ui/reports/report_definitions.py`:
+- Añadir nuevas definiciones de informes en `REPORT_CONFIGS`
 - Los tipos de gráficos disponibles están en `src/reports/chart_factory.py`
-- Exportadores disponibles: PDF, PNG, Email
+- Los métodos de carga de datos están en `src/reports/report_loader.py`
+- Exportadores disponibles: PDF, PNG
 
-### Configurar Exportadores de Email
+### Configurar Exportadores
 
-Para usar el exportador de email, configure los parámetros SMTP en `src/reports/exporters/email_exporter.py` o pase los parámetros al método `send_email()`:
+Los exportadores disponibles son:
 
-```python
-EmailExporter.send_email(
-    sender_email="tu@email.com",
-    sender_password="tu_password",
-    receiver_email="destino@email.com",
-    subject="Informe CRM",
-    body="Adjunto encontrarás el informe.",
-    attachment_path="ruta/al/archivo.pdf"
-)
-```
+**PDF**: Exporta informes y documentos a formato PDF usando matplotlib
+**PNG**: Exporta informes y documentos a formato PNG usando matplotlib
+
+Los exportadores se encuentran en:
+- `src/reports/exporters/pdf_exporter.py` - Exportación a PDF
+- `src/reports/exporters/image_exporter.py` - Exportación a PNG
+- `src/reports/exporters/report_exporter.py` - Exportador unificado para informes
+- `src/utils/export_helpers.py` - Helpers para exportación de documentos (presupuestos, facturas, pagos)
 
 ## Dependencias
 
@@ -188,12 +213,15 @@ Asegúrese de tener instaladas todas las dependencias:
 pip install -r requirements.txt
 ```
 
-**Nota**: `requirements.txt` puede no incluir todas las dependencias. Instale manualmente si es necesario:
-- `customtkinter`
-- `ttkbootstrap`
+**Dependencias principales**:
+- `customtkinter>=5.2.0` - Interfaz gráfica moderna
+- `ttkbootstrap>=1.10.0` - Temas y estilos adicionales
+- `requests>=2.31.0` - Cliente HTTP para API REST
+- `matplotlib>=3.7.0` - Generación de gráficos
+- `Pillow>=10.0.0` - Procesamiento de imágenes
 
 Para instalar todas las dependencias:
 ```bash
-pip install customtkinter ttkbootstrap requests matplotlib Pillow
+pip install -r requirements.txt
 ```
 

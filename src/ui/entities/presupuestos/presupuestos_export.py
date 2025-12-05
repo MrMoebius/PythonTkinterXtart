@@ -54,12 +54,13 @@ class PresupuestoExporter:
         cliente_pagador_id = presupuesto.get("id_cliente_pagador")
         cliente_beneficiario_id = presupuesto.get("id_cliente_beneficiario")
         empleado_id = presupuesto.get("id_empleado")
-        producto_id = presupuesto.get("id_producto")
+        
+        # Obtener productos del presupuesto (nuevo formato con presupuestoProductos)
+        presupuesto_productos = presupuesto.get("presupuestoProductos") or presupuesto.get("presupuesto_productos") or []
         
         cliente_pagador = self._find_cliente(cliente_pagador_id)
         cliente_beneficiario = self._find_cliente(cliente_beneficiario_id)
         empleado = self._find_empleado(empleado_id)
-        producto = self._find_producto(producto_id)
         
         # Crear documento base
         fig, ax = create_document_base()
@@ -89,8 +90,8 @@ class PresupuestoExporter:
         empleado_items = self._build_empleado_items(empleado, empleado_id)
         exporter.create_section("EMPLEADO RESPONSABLE", empleado_items)
 
-        # PRODUCTO — TABLA COMPACTA
-        self._add_producto_table(exporter, producto, producto_id)
+        # PRODUCTOS — TABLA
+        self._add_productos_table(exporter, presupuesto_productos)
 
         # Exportar
         if format == "pdf":
@@ -151,39 +152,76 @@ class PresupuestoExporter:
         else:
             return [("ID", empleado_id)]
     
-    def _add_producto_table(self, exporter: DocumentExporter, producto: Optional[Dict], producto_id: Optional[int]):
-        """Añade la tabla de producto al documento."""
+    def _add_productos_table(self, exporter: DocumentExporter, presupuesto_productos: List[Dict]):
+        """Añade la tabla de productos al documento."""
         exporter.separator()    
-        exporter.ax.text(0.5, exporter.y_position, "PRODUCTO",
+        exporter.ax.text(0.5, exporter.y_position, "PRODUCTOS",
                 ha="right", fontsize=13, weight='bold', transform=exporter.ax.transAxes)
         exporter.y_position -= 0.032
 
-        # Datos tabla
-        nombre = producto.get("nombre", "N/A") if producto else str(producto_id)
-        descripcion = producto.get("descripcion", "N/A") if producto else "-"
-        precio = f"€{producto.get('precio', 0):.2f}" if producto else "-"
-        categoria = producto.get("categoria", "N/A") if producto else "-"
+        if not presupuesto_productos:
+            exporter.ax.text(0.5, exporter.y_position, "No hay productos asociados",
+                    ha="center", fontsize=10, style='italic', transform=exporter.ax.transAxes)
+            exporter.y_position -= 0.04
+            return
 
-        table_data = [
-            ["Nombre", nombre],
-            ["Descripción", descripcion],
-            ["Precio", precio],
-            ["Categoría", categoria]
-        ]
+        # Preparar datos de la tabla
+        table_data = []
+        total_general = 0.0
+        
+        for pp in presupuesto_productos:
+            if not isinstance(pp, dict):
+                continue
+                
+            producto_id = pp.get("id_producto")
+            cantidad = pp.get("cantidad", 1)
+            precio_unitario = pp.get("precio_unitario", 0)
+            subtotal = pp.get("subtotal", precio_unitario * cantidad)
+            total_general += subtotal
+            
+            # Buscar producto para obtener nombre
+            producto = self._find_producto(producto_id)
+            nombre_producto = producto.get("nombre", f"Producto ID: {producto_id}") if producto else f"Producto ID: {producto_id}"
+            
+            table_data.append([
+                nombre_producto,
+                f"{cantidad}",
+                f"€{precio_unitario:.2f}",
+                f"€{subtotal:.2f}"
+            ])
+
+        if not table_data:
+            exporter.ax.text(0.5, exporter.y_position, "No hay productos válidos",
+                    ha="center", fontsize=10, style='italic', transform=exporter.ax.transAxes)
+            exporter.y_position -= 0.04
+            return
+
+        # Agregar fila de total
+        table_data.append(["", "", "TOTAL:", f"€{total_general:.2f}"])
+
+        # Calcular altura de la tabla según número de productos
+        num_filas = len(table_data)
+        altura_tabla = min(0.05 * num_filas + 0.08, 0.35)  # Máximo 35% de altura
 
         table = exporter.ax.table(
             cellText=table_data,
-            colLabels=["Campo", "Valor"],
+            colLabels=["Producto", "Cantidad", "Precio Unit.", "Subtotal"],
             cellLoc="left",
-            colWidths=[0.22, 0.60],
+            colWidths=[0.35, 0.12, 0.15, 0.15],
             loc="center",
-            bbox=[0.15, exporter.y_position - 0.13, 0.70, 0.12]
+            bbox=[0.10, exporter.y_position - altura_tabla, 0.80, altura_tabla]
         )
 
         table.auto_set_font_size(False)
         table.set_fontsize(9)
+        
+        # Resaltar fila de total
+        if num_filas > 0:
+            for i in range(4):
+                table[(num_filas, i)].set_facecolor('#E8E8E8')
+                table[(num_filas, i)].set_text_props(weight='bold')
 
         # Tarjeta alrededor de la tabla
-        exporter.draw_card(exporter.y_position + 0.018, exporter.y_position - 0.14)
-        exporter.y_position -= 0.155
+        exporter.draw_card(exporter.y_position + 0.018, exporter.y_position - altura_tabla - 0.02)
+        exporter.y_position -= altura_tabla + 0.03
 

@@ -1,27 +1,13 @@
-import random
-from datetime import datetime, timedelta
-
-
 class ReportLoader:
-    """Carga datos de informes desde el backend o desde datos demo (según cliente)."""
+    """Carga datos de informes desde el backend."""
 
     def __init__(self, api):
         self.api = api
-        self.is_demo = api.__class__.__name__.lower().startswith("demo")
-
-    # ================================================================
-    # HELPER → FORMATO DE RESPUESTA
-    # ================================================================
-    def _success(self, data):
-        return data if data else None
 
     # ================================================================
     # INFORME 1 → Ventas por empleado
     # ================================================================
     def ventas_por_empleado(self, desde=None, hasta=None):
-        # Modo demo
-        if self.is_demo:
-            return self._demo_ventas_por_empleado()
         # Construir parámetros
         params = {}
         if desde:
@@ -30,23 +16,37 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/ventas-empleado", params=params)
-        # Si el endpoint no existe (404) o falla, usar datos demo
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"[REPORT_LOADER] Parámetros enviados: desde={desde}, hasta={hasta}")
+        logger.info(f"[REPORT_LOADER] Respuesta completa: {res}")
+        
         if not res or not res.get("success"):
-            # Verificar si es un 404 (endpoint no existe)
             error = res.get("error", "") if res else ""
-            error_str = str(error).lower()
-            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
-                return self._demo_ventas_por_empleado()
-            return None
-        return res.get("data")
+            logger.error(f"Error al obtener ventas por empleado: {error}")
+            return []
+        
+        data = res.get("data")
+        logger.info(f"[REPORT_LOADER] Data extraída: {data} (type: {type(data)})")
+        
+        if data is None:
+            logger.warning("[REPORT_LOADER] Data es None, devolviendo lista vacía")
+            return []
+        
+        if isinstance(data, list):
+            logger.info(f"[REPORT_LOADER] Datos recibidos: {len(data)} elementos")
+            if len(data) > 0:
+                logger.info(f"[REPORT_LOADER] Primer elemento: {data[0]}")
+        else:
+            logger.warning(f"[REPORT_LOADER] Data no es una lista, es: {type(data)}")
+        
+        return data
 
     # ================================================================
     # INFORME 2 → Estado presupuestos
     # ================================================================
     def estados_presupuestos(self, desde=None, hasta=None):
-        # Modo demo
-        if self.is_demo:
-            return self._demo_estado_presupuestos()
         # Construir parámetros
         params = {}
         if desde:
@@ -55,21 +55,30 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/presupuestos-estado", params=params)
-        # Si el endpoint no existe (404) o falla, usar datos demo
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if not res or not res.get("success"):
             error = res.get("error", "") if res else ""
-            error_str = str(error).lower()
-            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
-                return self._demo_estado_presupuestos()
-            return None
-        return res.get("data")
+            logger.error(f"Error al obtener estado presupuestos: {error}")
+            return {}
+        
+        data = res.get("data")
+        if data is None:
+            return {}
+        
+        # Si el backend devuelve una lista vacía en lugar de un diccionario, convertir
+        if isinstance(data, list):
+            logger.warning("[REPORT_LOADER] Backend devolvió lista vacía, esperado diccionario. Convirtiendo a {}")
+            return {}
+        
+        logger.info(f"[REPORT_LOADER] Datos recibidos: {data}")
+        return data
 
     # ================================================================
     # INFORME 3 → Facturación mensual
     # ================================================================
     def facturacion_mensual(self, desde=None, hasta=None):
-        if self.is_demo:
-            return self._demo_facturacion_mensual()
         # Construir parámetros
         params = {}
         if desde:
@@ -78,21 +87,30 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/facturacion-mensual", params=params)
-        # Si el endpoint no existe (404) o falla, usar datos demo
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if not res or not res.get("success"):
             error = res.get("error", "") if res else ""
-            error_str = str(error).lower()
-            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
-                return self._demo_facturacion_mensual()
-            return None
-        return res.get("data")
+            logger.error(f"Error al obtener facturación mensual: {error}")
+            return {}
+        
+        data = res.get("data")
+        if data is None:
+            return {}
+        
+        # Si el backend devuelve una lista vacía en lugar de un diccionario, convertir
+        if isinstance(data, list):
+            logger.warning("[REPORT_LOADER] Backend devolvió lista vacía, esperado diccionario. Convirtiendo a {}")
+            return {}
+        
+        logger.info(f"[REPORT_LOADER] Datos recibidos: {len(data)} meses")
+        return data
 
     # ================================================================
     # INFORME 4 → Ventas por producto
     # ================================================================
     def ventas_por_producto(self, desde=None, hasta=None):
-        if self.is_demo:
-            return self._demo_ventas_por_producto()
         # Construir parámetros
         params = {}
         if desde:
@@ -101,21 +119,25 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/ventas-producto", params=params)
-        # Si el endpoint no existe (404) o falla, usar datos demo
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if not res or not res.get("success"):
             error = res.get("error", "") if res else ""
-            error_str = str(error).lower()
-            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
-                return self._demo_ventas_por_producto()
-            return None
-        return res.get("data")
+            logger.error(f"Error al obtener ventas por producto: {error}")
+            return []
+        
+        data = res.get("data")
+        if data is None:
+            return []
+        
+        logger.info(f"[REPORT_LOADER] Datos recibidos: {len(data) if isinstance(data, list) else 'dict'} elementos")
+        return data
 
     # ================================================================
     # INFORME 5 → Ratio de conversión
     # ================================================================
     def ratio_conversion(self, desde=None, hasta=None):
-        if self.is_demo:
-            return self._demo_ratio_conversion()
         # Construir parámetros
         params = {}
         if desde:
@@ -124,78 +146,23 @@ class ReportLoader:
             params["hasta"] = hasta
         # Petición API con fechas
         res = self.api.get("/informes/ratio-conversion", params=params)
-        # Si el endpoint no existe (404) o falla, usar datos demo
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if not res or not res.get("success"):
             error = res.get("error", "") if res else ""
-            error_str = str(error).lower()
-            if "404" in error_str or "no se encuentra" in error_str or "not found" in error_str:
-                return self._demo_ratio_conversion()
-            return None
-        return res.get("data")
+            logger.error(f"Error al obtener ratio conversión: {error}")
+            return {}
+        
+        data = res.get("data")
+        if data is None:
+            return {}
+        
+        # Si el backend devuelve una lista vacía en lugar de un diccionario, convertir
+        if isinstance(data, list):
+            logger.warning("[REPORT_LOADER] Backend devolvió lista vacía, esperado diccionario. Convirtiendo a {}")
+            return {}
+        
+        logger.info(f"[REPORT_LOADER] Datos recibidos: {data}")
+        return data
 
-    # ===================================================================
-    # ===================================================================
-    #                           MODO DEMO
-    # ===================================================================
-    # ===================================================================
-
-    # ---------------------------------------------------------
-    # DEMO → Ventas por empleado
-    # ---------------------------------------------------------
-    def _demo_ventas_por_empleado(self):
-        fake = [
-            {"nombre": "Juan Pérez", "total": 15200},
-            {"nombre": "Ana Gómez", "total": 9800},
-            {"nombre": "Carlos Ruiz", "total": 7200},
-            {"nombre": "Lucía Martín", "total": 18400},
-        ]
-        return self._success(fake)
-
-    # ---------------------------------------------------------
-    # DEMO → Estado presupuestos
-    # ---------------------------------------------------------
-    def _demo_estado_presupuestos(self):
-        fake = {
-            "Aceptado": 12,
-            "Pendiente": 18,
-            "Rechazado": 5,
-            "Caducado": 3
-        }
-        return self._success(fake)
-
-    # ---------------------------------------------------------
-    # DEMO → Facturación mensual
-    # ---------------------------------------------------------
-    def _demo_facturacion_mensual(self):
-        base_date = datetime.now().replace(day=1)
-        fake = {}
-
-        for i in range(12):
-            month = (base_date - timedelta(days=30 * i)).strftime("%Y-%m")
-            fake[month] = random.randint(3000, 20000)
-
-        return self._success(fake)
-
-    # ---------------------------------------------------------
-    # DEMO → Ventas por producto
-    # ---------------------------------------------------------
-    def _demo_ventas_por_producto(self):
-        fake = [
-            {"producto": "Curso Python", "total": 12000},
-            {"producto": "Curso Java", "total": 9500},
-            {"producto": "Curso Ciberseguridad", "total": 7600},
-            {"producto": "Curso Kotlin", "total": 6400},
-        ]
-        return self._success(fake)
-
-    # ---------------------------------------------------------
-    # DEMO → Ratio conversión
-    # ---------------------------------------------------------
-    def _demo_ratio_conversion(self):
-        fake = {
-            "Convertidos": 48,
-            "No interesados": 28,
-            "Pendientes": 15,
-            "Contactados": 9
-        }
-        return self._success(fake)

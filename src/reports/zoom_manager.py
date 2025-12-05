@@ -9,5 +9,3 @@ class ZoomManager:
     def zoom_out(self):
         self.scale = max(0.2, self.scale - 0.1)
 
-    def apply_zoom(self, widget):
-        widget.scale("all", 0, 0, self.scale, self.scale)

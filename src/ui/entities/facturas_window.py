@@ -172,11 +172,11 @@ class FacturasWindow(BaseCRUDWindow):
                         except (ValueError, TypeError):
                             pass  # Mantener el valor original si no es numérico
                     
-                    # Actualizar estado automáticamente: Pendiente -> Emitida cuando llega la fecha
-                    estado_actual = row.get("estado", "").strip()
+                    # Actualizar estado automáticamente: PENDIENTE -> EMITIDA cuando llega la fecha
+                    estado_actual = row.get("estado", "").strip().upper()
                     fecha_str = row.get("fecha")
                     
-                    if estado_actual.lower() == "pendiente" and fecha_str:
+                    if estado_actual == "PENDIENTE" and fecha_str:
                         try:
                             fecha_factura = datetime.strptime(fecha_str, "%Y-%m-%d").date()
                             hoy = datetime.now().date()
@@ -184,9 +184,9 @@ class FacturasWindow(BaseCRUDWindow):
                                 # Actualizar en el backend
                                 factura_id = row.get("id") or row.get("id_factura")
                                 if factura_id:
-                                    update_data = {"estado": "Emitida"}
+                                    update_data = {"estado": "EMITIDA"}
                                     self.api.update("facturas", factura_id, update_data)
-                                    row["estado"] = "Emitida"
+                                    row["estado"] = "EMITIDA"
                         except (ValueError, TypeError):
                             pass  # Ignorar errores de formato de fecha
         
@@ -312,9 +312,9 @@ class FacturasWindow(BaseCRUDWindow):
             if "fecha_emision" in item and "fecha" not in item:
                 item["fecha"] = item["fecha_emision"]
             
-            # Normalizar estado
+            # Normalizar estado a mayúsculas
             if "estado" in item and isinstance(item["estado"], str):
-                item["estado"] = item["estado"].lower().strip()
+                item["estado"] = item["estado"].upper().strip()
             
             # Redondear total a 2 decimales
             if "total" in item and item.get("total") is not None:
@@ -408,8 +408,8 @@ class FacturasWindow(BaseCRUDWindow):
                         opts.append(f"{empleado_id} - {display_name}")
 
                 elif f["name"] == "estado":
-                    # Estados permitidos en backend: Pendiente, Emitida, Pagada, No pagada
-                    opts = ["Pendiente", "Emitida", "Pagada", "No pagada"]
+                    # Estados permitidos en backend: PENDIENTE, EMITIDA, PAGADA, VENCIDA
+                    opts = ["PENDIENTE", "EMITIDA", "PAGADA", "VENCIDA"]
 
                 else:
                     opts = []

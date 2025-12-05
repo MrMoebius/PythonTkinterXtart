@@ -2,4 +2,5 @@ class ImageExporter:
 
     @staticmethod
     def export(figure, path):
-        figure.savefig(path, format="png")
+        # Exportar PNG con buena resolución manteniendo proporción A4
+        figure.savefig(path, format="png", dpi=150, bbox_inches="tight")

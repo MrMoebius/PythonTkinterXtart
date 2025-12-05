@@ -271,14 +271,14 @@ class ProductosWindow(BaseCRUDWindow):
         Campos que el backend Java acepta:
         - nombre (obligatorio)
         - descripcion (opcional)
-        - categoria (opcional): "Ciclo Formativo" o "Formación complementaria"
+        - categoria (opcional): "CICLO FORMATIVO" o "FORMACION COMPLEMENTARIA"
         - precio (opcional, debe ser >= 0)
         - activo (opcional, boolean, por defecto false)
         """
         return [
             {"name": "nombre", "label": "Nombre", "type": "text", "required": True},
             {"name": "descripcion", "label": "Descripción", "type": "text", "required": False},
-            {"name": "categoria", "label": "Categoría", "type": "select", "options": ["Ciclo Formativo", "Formación complementaria"], "required": False},
+            {"name": "categoria", "label": "Categoría", "type": "select", "options": ["CICLO FORMATIVO", "FORMACION COMPLEMENTARIA"], "required": False},
             {"name": "precio", "label": "Precio", "type": "number", "required": False},
             {"name": "activo", "label": "Activo", "type": "checkbox", "required": False},
         ]

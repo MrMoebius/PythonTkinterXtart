@@ -105,7 +105,7 @@ class PresupuestosWindow(BaseCRUDWindow):
                         c["id"] = c["id_cliente"]
             self.clientes = clientes_data
             # Filtrar por tipo
-            self.clientes_persona = [c for c in clientes_data if c.get("tipo_cliente", "").lower() == "persona"]
+            self.clientes_persona = [c for c in clientes_data if c.get("tipo_cliente", "").upper() == "PARTICULAR"]
             self.clientes_empresa_persona = clientes_data  # Todos para pagador
 
         # Cargar empleados
@@ -627,7 +627,7 @@ class PresupuestosWindow(BaseCRUDWindow):
                 parent=form,
                 api=self.api,
                 titulo="Nuevo Cliente Beneficiario",
-                tipo_cliente_fijo="persona",  # Solo permite crear persona
+                tipo_cliente_fijo="PARTICULAR",  # Solo permite crear PARTICULAR
                 on_success=on_success
             )
         
@@ -1028,9 +1028,12 @@ class PresupuestosWindow(BaseCRUDWindow):
 
             # Fecha cierre (opcional)
             # Nota: El backend asigna automáticamente fecha_cierre cuando el estado cambia a APROBADO
+            # Solo enviar fecha_cierre si el usuario la especificó explícitamente Y el estado NO es APROBADO
+            # Si el estado es APROBADO y no hay fecha_cierre, dejar que el backend la asigne automáticamente
             fecha_cierre_val = entry_fecha_cierre.get_value()
-            if fecha_cierre_val:
+            if fecha_cierre_val and estado_val != "APROBADO":
                 data["fecha_cierre"] = fecha_cierre_val
+            # Si el estado es APROBADO y no hay fecha_cierre, no enviar el campo para que el backend lo asigne
 
             # Guardar
             # Logging para debug

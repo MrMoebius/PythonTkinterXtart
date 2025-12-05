@@ -239,13 +239,13 @@ class PagosWindow(BaseCRUDWindow):
                         if "metodo_pago" in pago_data:
                             metodo = pago_data["metodo_pago"]
                             if isinstance(metodo, str):
-                                pago_data["metodo_pago"] = metodo.lower().strip()
+                                pago_data["metodo_pago"] = metodo.upper().strip()
                         
-                        # Normalizar estado (asegurar que esté en minúsculas)
+                        # Normalizar estado (asegurar que esté en mayúsculas)
                         if "estado" in pago_data:
                             estado = pago_data["estado"]
                             if isinstance(estado, str):
-                                pago_data["estado"] = estado.lower().strip()
+                                pago_data["estado"] = estado.upper().strip()
                         
                         # Redondear importe a 2 decimales
                         if "importe" in pago_data and pago_data.get("importe") is not None:
@@ -313,13 +313,13 @@ class PagosWindow(BaseCRUDWindow):
 
                 # Método
                 elif f["name"] == "metodo_pago":
-                    # Valores permitidos por el backend: transferencia, tarjeta, efectivo
-                    opts = ["transferencia", "tarjeta", "efectivo"]
+                    # Valores permitidos por el backend: TRANSFERENCIA, TARJETA, EFECTIVO
+                    opts = ["TRANSFERENCIA", "TARJETA", "EFECTIVO"]
 
                 # Estado
                 elif f["name"] == "estado":
-                    # Estados válidos en backend: pendiente, confirmado, fallido
-                    opts = ["pendiente", "confirmado", "fallido"]
+                    # Estados válidos en backend: PENDIENTE, PAGADA, CANCELADA
+                    opts = ["PENDIENTE", "PAGADA", "CANCELADA"]
 
                 else:
                     opts = []

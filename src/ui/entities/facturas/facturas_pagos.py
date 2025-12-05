@@ -103,10 +103,10 @@ class FacturaPagoHandler:
         ttk.Label(main, text="Método de Pago:", font=("Arial", 10, "bold")).grid(
             row=row, column=0, sticky="w", pady=(0, 5)
         )
-        # Métodos válidos según el backend (en minúsculas)
-        metodos_pago = ["transferencia", "tarjeta", "efectivo"]
+        # Métodos válidos según el backend (en mayúsculas)
+        metodos_pago = ["TRANSFERENCIA", "TARJETA", "EFECTIVO"]
         combo_metodo = ttk.Combobox(main, values=metodos_pago, width=20, state="readonly")
-        combo_metodo.set(metodos_pago[0])  # Por defecto: transferencia
+        combo_metodo.set(metodos_pago[0])  # Por defecto: TRANSFERENCIA
         combo_metodo.grid(row=row, column=1, sticky="w", padx=10, pady=(0, 5))
         row += 1
         
@@ -157,8 +157,8 @@ class FacturaPagoHandler:
             pago_data = {
                 "id_factura": factura_id,
                 "importe": total,
-                "metodo_pago": metodo_pago.lower(),  # El backend espera minúsculas
-                "estado": "confirmado",  # Estado inicial del pago
+                "metodo_pago": metodo_pago.upper(),  # El backend espera: TRANSFERENCIA, TARJETA, EFECTIVO
+                "estado": "PAGADA",  # Estado inicial del pago
                 "fecha_pago": fecha_pago
             }
             

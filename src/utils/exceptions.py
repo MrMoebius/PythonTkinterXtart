@@ -18,12 +18,3 @@ class NetworkError(APIError):
     pass
 
 
-class ValidationError(APIError):
-    """Error de validación de datos"""
-    pass
-
-
-class NotFoundError(APIError):
-    """Recurso no encontrado"""
-    pass
-

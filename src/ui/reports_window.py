@@ -14,6 +14,7 @@ from src.ui.reports.report_definitions import (
 
 from src.reports.exporters.pdf_exporter import PDFExporter
 from src.reports.exporters.image_exporter import ImageExporter
+from src.reports.exporters.report_exporter import ReportExporter
 
 
 class ReportsWindow(ctk.CTkFrame):
@@ -35,8 +36,9 @@ class ReportsWindow(ctk.CTkFrame):
 
         self._build_ui()
 
-        # Cargar una pestaña inicial por defecto (después de que los widgets estén creados)
-        self.after(100, lambda: self._switch_tab("Ventas por empleado"))
+        # Establecer un informe por defecto pero sin cargar datos
+        # Solo se cargarán datos cuando el usuario presione "Generar"
+        self.active_tab = "Ventas por empleado"
 
     # ================================================================
     # UI PRINCIPAL
@@ -88,7 +90,7 @@ class ReportsWindow(ctk.CTkFrame):
             actions_frame,
             text="Actualizar",
             width=120,
-            command=lambda: self._switch_tab(self.active_tab)
+            command=self._generate_from_period
         ).pack(side="left", padx=4)
 
         ctk.CTkButton(
@@ -166,19 +168,29 @@ class ReportsWindow(ctk.CTkFrame):
         self.popover.geometry(f"220x200+{x}+{y}")
 
     # ================================================================
-    # CAMBIO DE TAB
+    # CAMBIO DE TAB (solo cambia el informe activo, no hace consulta)
     # ================================================================
     def _switch_tab(self, name, desde=None, hasta=None):
+        import logging
+        logger = logging.getLogger(__name__)
+        
         self.active_tab = name
-        # Si no se pasan fechas, usar las del datepicker
-        if not desde and hasattr(self, 'fecha_desde'):
-            desde = self.fecha_desde.get()
-        if not hasta and hasattr(self, 'fecha_hasta'):
-            hasta = self.fecha_hasta.get()
+        
+        # Solo hacer consulta si se pasan fechas explícitamente (desde el botón "Generar")
+        # Si no se pasan fechas, solo cambiar el informe activo sin consultar
+        if desde is None and hasta is None:
+            logger.info(f"[REPORTS_WINDOW] Cambiando a informe '{name}' sin generar datos")
+            # Mostrar mensaje indicando que debe presionar "Generar"
+            self._render_report(None, name)
+            return
+        
+        # Si se pasan fechas, hacer la consulta
+        logger.info(f"[REPORTS_WINDOW] Generando informe '{name}' con fechas: desde={desde}, hasta={hasta}")
         
         # Obtener método del loader desde las definiciones
         method_name = get_loader_method_name(name)
         if not method_name:
+            logger.warning(f"[REPORTS_WINDOW] No se encontró método para '{name}'")
             data = None
         else:
             # Llamar método del loader dinámicamente
@@ -186,6 +198,7 @@ class ReportsWindow(ctk.CTkFrame):
             if loader_method:
                 data = loader_method(desde, hasta)
             else:
+                logger.error(f"[REPORTS_WINDOW] Método '{method_name}' no existe en ReportLoader")
                 data = None
         
         # Guardar última data y título para zoom/export
@@ -200,16 +213,31 @@ class ReportsWindow(ctk.CTkFrame):
     def _generate_from_period(self):
         if not hasattr(self, 'fecha_desde') or not hasattr(self, 'fecha_hasta'):
             return
+        
+        # Validar que haya un informe seleccionado
+        if not self.active_tab:
+            messagebox.showwarning("Advertencia", "Por favor, seleccione un informe primero.")
+            return
+        
         desde = self.fecha_desde.get()
         hasta = self.fecha_hasta.get()
-        if self.active_tab:
-            self._switch_tab(self.active_tab, desde, hasta)
+        
+        # Validar que se hayan seleccionado fechas
+        if not desde or not hasta:
+            messagebox.showwarning("Advertencia", "Por favor, seleccione un período (desde y hasta).")
+            return
+        
+        # Generar el informe con las fechas seleccionadas
+        self._switch_tab(self.active_tab, desde, hasta)
 
 
     # ================================================================
     # RENDERIZACIÓN DEL INFORME
     # ================================================================
     def _render_report(self, data, title):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[RENDER] Renderizando informe: {title}, data type: {type(data)}, data: {data}")
 
         # El área scrolleable se limpia automáticamente por GraphicPanel
         desde = None
@@ -218,49 +246,81 @@ class ReportsWindow(ctk.CTkFrame):
             desde = self.fecha_desde.get()
             hasta = self.fecha_hasta.get()
 
-        if not data:
-            fig = ChartFactory.empty("Sin datos disponibles")
+        # Si data es None (no se ha generado informe aún), mostrar mensaje
+        if data is None:
+            logger.info(f"[RENDER] No hay datos para {title}, mostrando mensaje inicial")
+            fig = ChartFactory.empty("Seleccione un período y presione 'Generar' para ver el informe")
+        # Verificar si data es lista vacía o diccionario vacío
+        elif (isinstance(data, list) and len(data) == 0) or (isinstance(data, dict) and len(data) == 0):
+            logger.warning(f"[RENDER] Datos vacíos para {title}, mostrando mensaje 'Sin datos disponibles'")
+            fig = ChartFactory.empty("Sin datos disponibles para el período seleccionado")
         else:
             # Obtener configuración del informe desde las definiciones
             chart_type = get_chart_type(title)
             chart_config = get_chart_config(title)
             
+            logger.info(f"[RENDER] chart_type: {chart_type}, chart_config: {chart_config is not None}")
+            
             if not chart_type or not chart_config:
+                logger.error(f"[RENDER] Configuración no encontrada para {title}")
                 fig = ChartFactory.empty("Configuración de informe no encontrada")
             else:
                 # Extraer datos usando la función extractor
                 data_extractor = chart_config.get("data_extractor")
                 if data_extractor:
-                    labels, values = data_extractor(data)
+                    try:
+                        labels, values = data_extractor(data)
+                        logger.info(f"[RENDER] Datos extraídos - labels: {len(labels) if labels else 0}, values: {len(values) if values else 0}")
+                    except Exception as e:
+                        logger.error(f"[RENDER] Error extrayendo datos: {e}", exc_info=True)
+                        labels, values = [], []
                 else:
+                    logger.warning(f"[RENDER] No hay data_extractor en chart_config")
                     labels, values = [], []
                 
-                # Crear gráfico según el tipo
-                if chart_type == "bar":
-                    xlabel = chart_config.get("xlabel", "")
-                    ylabel = chart_config.get("ylabel", "")
-                    fig = ChartFactory.bar_chart(labels, values, title, ylabel or xlabel)
-                
-                elif chart_type == "pie":
-                    fig = ChartFactory.pie_chart(labels, values, title)
-                
-                elif chart_type == "line":
-                    xlabel = chart_config.get("xlabel", "")
-                    ylabel = chart_config.get("ylabel", "")
-                    fig = ChartFactory.line_chart(labels, values, title, xlabel, ylabel)
-                
+                # Verificar si hay datos después de extraer
+                if not labels or not values or len(labels) == 0 or len(values) == 0:
+                    logger.warning(f"[RENDER] No hay datos después de extraer para {title}")
+                    fig = ChartFactory.empty("Sin datos disponibles para el período seleccionado")
                 else:
-                    fig = ChartFactory.empty(f"Tipo de gráfico '{chart_type}' no soportado")
+                    # Crear gráfico según el tipo
+                    logger.info(f"[RENDER] Creando gráfico tipo {chart_type} con {len(labels)} elementos")
+                    if chart_type == "bar":
+                        xlabel = chart_config.get("xlabel", "")
+                        ylabel = chart_config.get("ylabel", "")
+                        fig = ChartFactory.bar_chart(labels, values, title, ylabel or xlabel)
+                    
+                    elif chart_type == "pie":
+                        fig = ChartFactory.pie_chart(labels, values, title)
+                    
+                    elif chart_type == "line":
+                        xlabel = chart_config.get("xlabel", "")
+                        ylabel = chart_config.get("ylabel", "")
+                        fig = ChartFactory.line_chart(labels, values, title, xlabel, ylabel)
+                    
+                    else:
+                        logger.error(f"[RENDER] Tipo de gráfico '{chart_type}' no soportado")
+                        fig = ChartFactory.empty("Tipo de gráfico no soportado: " + chart_type)
 
         # Texto del periodo dentro del gráfico y título descriptivo
         subtitle = title
         if desde and hasta:
             periodo_txt = f"{desde} → {hasta}"
-            fig.text(
-                0.01, 0.01,
-                f"Periodo: {periodo_txt}",
-                fontsize=10
-            )
+            # Solo añadir texto del período si hay datos (no es None y no está vacío)
+            # ChartFactory.empty ya tiene su propio texto, así que solo añadimos período a gráficos con datos
+            if data is not None and not ((isinstance(data, list) and len(data) == 0) or (isinstance(data, dict) and len(data) == 0)):
+                try:
+                    if hasattr(fig, 'axes') and len(fig.axes) > 0:
+                        ax = fig.axes[0]
+                        if ax and ax.axis()[0]:  # Verificar si el eje está activo (axis()[0] != 0 significa que está activo)
+                            ax.text(
+                                0.01, 0.01,
+                                f"Periodo: {periodo_txt}",
+                                fontsize=10,
+                                transform=ax.transAxes
+                            )
+                except Exception as e:
+                    logger.warning(f"[RENDER] No se pudo añadir texto del período: {e}")
             subtitle = f"{title} ({periodo_txt})"
 
         # Actualizar etiqueta de título de informe en la ventana
@@ -271,25 +331,45 @@ class ReportsWindow(ctk.CTkFrame):
         self.current_figure = fig
         scale = getattr(self.zoom, "scale", 1.0)
         fig.set_size_inches(8 * scale, 4 * scale)
+        logger.info(f"[RENDER] Figura configurada con tamaño: {8 * scale} x {4 * scale}")
 
         # Mostrar usando GraphicPanel avanzado
         # CTkScrollableFrame tiene un inner_frame donde va el contenido
         parent_frame = self.scroll_area.inner_frame if hasattr(self.scroll_area, 'inner_frame') else self.scroll_area
-        self.canvas_widget = GraphicPanel.display(parent_frame, fig)
+        logger.info(f"[RENDER] Mostrando gráfico en parent_frame: {parent_frame}")
+        try:
+            self.canvas_widget = GraphicPanel.display(parent_frame, fig)
+            logger.info(f"[RENDER] Gráfico mostrado correctamente")
+        except Exception as e:
+            logger.error(f"[RENDER] Error al mostrar gráfico: {e}", exc_info=True)
+            raise
 
     # ================================================================
     # EXPORTAR
     # ================================================================
     def _export_pdf(self):
-        if not self.current_figure:
-            return messagebox.showwarning("Error", "No hay informe generado.")
+        if not self.last_data or not self.last_title:
+            return messagebox.showwarning("Error", "No hay informe generado para exportar.")
+
+        # Obtener configuración del informe
+        chart_type = get_chart_type(self.last_title)
+        chart_config = get_chart_config(self.last_title)
+        
+        if not chart_type or not chart_config:
+            return messagebox.showerror("Error", "No se pudo obtener la configuración del informe.")
+
+        # Obtener fechas
+        desde = self.fecha_desde.get() if hasattr(self, "fecha_desde") else None
+        hasta = self.fecha_hasta.get() if hasattr(self, "fecha_hasta") else None
 
         # Nombre sugerido: Informe - <titulo> - <fecha>.pdf
         base_name = self.last_title or "Informe"
-        desde = self.fecha_desde.get() if hasattr(self, "fecha_desde") else ""
-        hasta = self.fecha_hasta.get() if hasattr(self, "fecha_hasta") else ""
         if desde and hasta:
             base_name = f"{base_name} - {desde}_a_{hasta}"
+        elif desde:
+            base_name = f"{base_name} - desde_{desde}"
+        elif hasta:
+            base_name = f"{base_name} - hasta_{hasta}"
         initialfile = f"{base_name}.pdf"
 
         path = filedialog.asksaveasfilename(
@@ -298,17 +378,44 @@ class ReportsWindow(ctk.CTkFrame):
             initialfile=initialfile
         )
         if path:
-            PDFExporter.export(self.current_figure, path)
+            try:
+                ReportExporter.export_report(
+                    title=self.last_title,
+                    data=self.last_data,
+                    chart_type=chart_type,
+                    chart_config=chart_config,
+                    desde=desde,
+                    hasta=hasta,
+                    path=path,
+                    format="pdf"
+                )
+                messagebox.showinfo("Éxito", f"Informe exportado a PDF:\n{path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al exportar PDF:\n{str(e)}")
 
     def _export_png(self):
-        if not self.current_figure:
-            return messagebox.showwarning("Error", "No hay informe generado.")
+        if not self.last_data or not self.last_title:
+            return messagebox.showwarning("Error", "No hay informe generado para exportar.")
 
+        # Obtener configuración del informe
+        chart_type = get_chart_type(self.last_title)
+        chart_config = get_chart_config(self.last_title)
+        
+        if not chart_type or not chart_config:
+            return messagebox.showerror("Error", "No se pudo obtener la configuración del informe.")
+
+        # Obtener fechas
+        desde = self.fecha_desde.get() if hasattr(self, "fecha_desde") else None
+        hasta = self.fecha_hasta.get() if hasattr(self, "fecha_hasta") else None
+
+        # Nombre sugerido: Informe - <titulo> - <fecha>.png
         base_name = self.last_title or "Informe"
-        desde = self.fecha_desde.get() if hasattr(self, "fecha_desde") else ""
-        hasta = self.fecha_hasta.get() if hasattr(self, "fecha_hasta") else ""
         if desde and hasta:
             base_name = f"{base_name} - {desde}_a_{hasta}"
+        elif desde:
+            base_name = f"{base_name} - desde_{desde}"
+        elif hasta:
+            base_name = f"{base_name} - hasta_{hasta}"
         initialfile = f"{base_name}.png"
 
         path = filedialog.asksaveasfilename(
@@ -317,7 +424,20 @@ class ReportsWindow(ctk.CTkFrame):
             initialfile=initialfile
         )
         if path:
-            ImageExporter.export(self.current_figure, path)
+            try:
+                ReportExporter.export_report(
+                    title=self.last_title,
+                    data=self.last_data,
+                    chart_type=chart_type,
+                    chart_config=chart_config,
+                    desde=desde,
+                    hasta=hasta,
+                    path=path,
+                    format="png"
+                )
+                messagebox.showinfo("Éxito", f"Informe exportado a PNG:\n{path}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al exportar PNG:\n{str(e)}")
 
     # ================================================================
     # ZOOM REAL
