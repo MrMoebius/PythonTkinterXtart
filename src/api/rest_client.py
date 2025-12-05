@@ -106,6 +106,7 @@ class RESTClient:
             
             # Normalizar estructura del backend Java a formato esperado
             # El backend Java devuelve: id_empleado, id_rol como objeto, etc.
+            # O id_cliente para clientes
             normalized_data = {}
             
             # ID: puede venir como id, id_empleado o id_cliente
@@ -116,23 +117,29 @@ class RESTClient:
             )
             normalized_data["id"] = user_id
             
-            # Rol: puede venir como rol (string) o id_rol (objeto con nombre_rol)
-            rol_obj = user_data.get("id_rol")
-            if isinstance(rol_obj, dict):
-                # Si id_rol es un objeto, extraer nombre_rol
-                normalized_data["rol"] = rol_obj.get("nombre_rol", "").upper()
-            else:
-                # Si viene como string directo
-                normalized_data["rol"] = (user_data.get("rol") or "").upper()
-            
             # Tipo: determinar si es empleado o cliente
             # Si tiene id_empleado, es empleado; si tiene id_cliente, es cliente
             if user_data.get("id_empleado"):
                 normalized_data["tipo"] = "empleado"
+                # Rol: puede venir como rol (string) o id_rol (objeto con nombre_rol)
+                rol_obj = user_data.get("id_rol")
+                if isinstance(rol_obj, dict):
+                    # Si id_rol es un objeto, extraer nombre_rol
+                    normalized_data["rol"] = rol_obj.get("nombre_rol", "").upper()
+                else:
+                    # Si viene como string directo
+                    normalized_data["rol"] = (user_data.get("rol") or "").upper()
             elif user_data.get("id_cliente"):
                 normalized_data["tipo"] = "cliente"
+                # Los clientes no tienen rol, se establece como CLIENTE
+                normalized_data["rol"] = "CLIENTE"
             else:
                 # Por defecto, si tiene rol, es empleado
+                rol_obj = user_data.get("id_rol")
+                if isinstance(rol_obj, dict):
+                    normalized_data["rol"] = rol_obj.get("nombre_rol", "").upper()
+                else:
+                    normalized_data["rol"] = (user_data.get("rol") or "").upper()
                 normalized_data["tipo"] = "empleado" if normalized_data.get("rol") else "cliente"
             
             # Copiar otros campos
