@@ -11,8 +11,8 @@ class Endpoints:
     BASE_URL = "http://localhost:8080/crudxtart_war"
     
     # Autenticación
-    AUTH_LOGIN = "/auth/login"
-    AUTH_LOGOUT = "/auth/logout"
+    AUTH_LOGIN = "/login"
+    AUTH_LOGOUT = "/logout"
     
     # Clientes
     CLIENTES = "/clientes"

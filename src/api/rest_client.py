@@ -104,14 +104,54 @@ class RESTClient:
             
             logger.info(f"user_data extraído: {user_data}")
             
+            # Normalizar estructura del backend Java a formato esperado
+            # El backend Java devuelve: id_empleado, id_rol como objeto, etc.
+            normalized_data = {}
+            
+            # ID: puede venir como id, id_empleado o id_cliente
+            user_id = (
+                user_data.get("id") or 
+                user_data.get("id_empleado") or 
+                user_data.get("id_cliente")
+            )
+            normalized_data["id"] = user_id
+            
+            # Rol: puede venir como rol (string) o id_rol (objeto con nombre_rol)
+            rol_obj = user_data.get("id_rol")
+            if isinstance(rol_obj, dict):
+                # Si id_rol es un objeto, extraer nombre_rol
+                normalized_data["rol"] = rol_obj.get("nombre_rol", "").upper()
+            else:
+                # Si viene como string directo
+                normalized_data["rol"] = (user_data.get("rol") or "").upper()
+            
+            # Tipo: determinar si es empleado o cliente
+            # Si tiene id_empleado, es empleado; si tiene id_cliente, es cliente
+            if user_data.get("id_empleado"):
+                normalized_data["tipo"] = "empleado"
+            elif user_data.get("id_cliente"):
+                normalized_data["tipo"] = "cliente"
+            else:
+                # Por defecto, si tiene rol, es empleado
+                normalized_data["tipo"] = "empleado" if normalized_data.get("rol") else "cliente"
+            
+            # Copiar otros campos
+            normalized_data["nombre"] = user_data.get("nombre", "")
+            normalized_data["email"] = user_data.get("email", username)
+            normalized_data["telefono"] = user_data.get("telefono", "")
+            
             # Guardar sesión interna
             # El backend Java usa sesiones HTTP (JSESSIONID), no tokens JWT
             self.token = user_data.get("token") or data.get("token")
-            self.user_role = (user_data.get("rol") or "").upper().strip()
-            self.user_id = user_data.get("id")
-            self.username = user_data.get("nombre", username)
+            self.user_role = normalized_data.get("rol", "").upper().strip()
+            self.user_id = user_id  # Usar la variable directamente
+            self.username = normalized_data.get("nombre", username)
 
             logger.info(f"user_id: {self.user_id}, user_role: {self.user_role}, username: {self.username}")
+            logger.info(f"normalized_data: {normalized_data}")
+            
+            # Retornar datos normalizados
+            user_data = normalized_data
 
             # El backend Java mantiene la sesión mediante cookies (JSESSIONID)
             # No necesitamos token para autenticación, la sesión HTTP se mantiene automáticamente
