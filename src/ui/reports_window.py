@@ -3,6 +3,7 @@ from tkinter import filedialog, messagebox
 
 from src.ui.widgets.ctk_datepicker import CTkDatePicker
 from src.ui.widgets.ctk_scrollable_frame import CTkScrollableFrame
+from src.ui.widgets.period_selector import PeriodSelector
 
 from src.reports.report_loader import ReportLoader
 from src.reports.chart_factory import ChartFactory
@@ -58,7 +59,8 @@ class ReportsWindow(ctk.CTkFrame):
         ctk.CTkLabel(
             left_title,
             text="Informes y Gráficos",
-            font=ctk.CTkFont(size=22, weight="bold")
+            font=ctk.CTkFont(size=22, weight="bold"),
+            text_color="#2491ed"  # Azul primario
         ).pack(side="left")
 
         ctk.CTkButton(
@@ -112,14 +114,16 @@ class ReportsWindow(ctk.CTkFrame):
         ctk.CTkLabel(
             period_frame,
             text="Periodo:",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="#293553"
         ).pack(side="left", padx=5)
 
-        self.fecha_desde = CTkDatePicker(period_frame)
-        self.fecha_desde.pack(side="left", padx=5)
-
-        self.fecha_hasta = CTkDatePicker(period_frame)
-        self.fecha_hasta.pack(side="left", padx=5)
+        # Nuevo selector de período con opciones rápidas
+        self.period_selector = PeriodSelector(
+            period_frame,
+            on_period_change=self._on_period_changed
+        )
+        self.period_selector.pack(side="left", padx=5)
 
         ctk.CTkButton(
             period_frame,
@@ -131,7 +135,8 @@ class ReportsWindow(ctk.CTkFrame):
         self.report_title_label = ctk.CTkLabel(
             self,
             text="",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ctk.CTkFont(size=20, weight="bold"),  # Aumentado de 18 a 20
+            text_color="#6f42c1"  # Color púrpura para destacar
         )
         self.report_title_label.pack(fill="x", pady=(0, 4))
 
@@ -211,7 +216,7 @@ class ReportsWindow(ctk.CTkFrame):
     # GENERAR POR PERIODO
     # ================================================================
     def _generate_from_period(self):
-        if not hasattr(self, 'fecha_desde') or not hasattr(self, 'fecha_hasta'):
+        if not hasattr(self, 'period_selector'):
             return
         
         # Validar que haya un informe seleccionado
@@ -219,8 +224,8 @@ class ReportsWindow(ctk.CTkFrame):
             messagebox.showwarning("Advertencia", "Por favor, seleccione un informe primero.")
             return
         
-        desde = self.fecha_desde.get()
-        hasta = self.fecha_hasta.get()
+        desde = self.period_selector.get_desde()
+        hasta = self.period_selector.get_hasta()
         
         # Validar que se hayan seleccionado fechas
         if not desde or not hasta:
@@ -229,6 +234,11 @@ class ReportsWindow(ctk.CTkFrame):
         
         # Generar el informe con las fechas seleccionadas
         self._switch_tab(self.active_tab, desde, hasta)
+    
+    def _on_period_changed(self, desde, hasta):
+        """Callback cuando cambia el período (opcional, para auto-generar)"""
+        # Por ahora no hacemos nada automático, solo cuando se presiona "Generar"
+        pass
 
 
     # ================================================================
@@ -242,9 +252,9 @@ class ReportsWindow(ctk.CTkFrame):
         # El área scrolleable se limpia automáticamente por GraphicPanel
         desde = None
         hasta = None
-        if hasattr(self, 'fecha_desde') and hasattr(self, 'fecha_hasta'):
-            desde = self.fecha_desde.get()
-            hasta = self.fecha_hasta.get()
+        if hasattr(self, 'period_selector'):
+            desde = self.period_selector.get_desde()
+            hasta = self.period_selector.get_hasta()
 
         # Si data es None (no se ha generado informe aún), mostrar mensaje
         if data is None:
@@ -359,8 +369,8 @@ class ReportsWindow(ctk.CTkFrame):
             return messagebox.showerror("Error", "No se pudo obtener la configuración del informe.")
 
         # Obtener fechas
-        desde = self.fecha_desde.get() if hasattr(self, "fecha_desde") else None
-        hasta = self.fecha_hasta.get() if hasattr(self, "fecha_hasta") else None
+        desde = self.period_selector.get_desde() if hasattr(self, "period_selector") else None
+        hasta = self.period_selector.get_hasta() if hasattr(self, "period_selector") else None
 
         # Nombre sugerido: Informe - <titulo> - <fecha>.pdf
         base_name = self.last_title or "Informe"
@@ -405,8 +415,8 @@ class ReportsWindow(ctk.CTkFrame):
             return messagebox.showerror("Error", "No se pudo obtener la configuración del informe.")
 
         # Obtener fechas
-        desde = self.fecha_desde.get() if hasattr(self, "fecha_desde") else None
-        hasta = self.fecha_hasta.get() if hasattr(self, "fecha_hasta") else None
+        desde = self.period_selector.get_desde() if hasattr(self, "period_selector") else None
+        hasta = self.period_selector.get_hasta() if hasattr(self, "period_selector") else None
 
         # Nombre sugerido: Informe - <titulo> - <fecha>.png
         base_name = self.last_title or "Informe"

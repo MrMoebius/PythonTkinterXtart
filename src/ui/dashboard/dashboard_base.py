@@ -21,16 +21,7 @@ class DashboardBase(ctk.CTkFrame, ABC):
     # Estructura general del dashboard
     # ================================================================
     def _create_widgets(self):
-        # Título
-        title = ctk.CTkLabel(
-            self,
-            text="Dashboard",
-            font=("Arial", 36, "bold"),
-            text_color="white"
-        )
-        title.pack(pady=8)
-
-        # Frame de estadísticas
+        # Frame de estadísticas (el título ahora está en el header)
         stats_frame = ctk.CTkFrame(self, fg_color="#252932", corner_radius=20)
         stats_frame.pack(fill="x", padx=8, pady=4)
 

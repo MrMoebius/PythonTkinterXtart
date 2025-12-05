@@ -145,6 +145,15 @@ class MainWindow:
             text_color="#293553",
         ).pack(padx=16, pady=8)
 
+        # Título de la ventana en el centro del header
+        self.window_title_label = ctk.CTkLabel(
+            self.topbar,
+            text="Dashboard",
+            font=ctk.CTkFont("Arial", 32, "bold"),
+            text_color="white"
+        )
+        self.window_title_label.pack(side="left", expand=True, padx=20)
+
         img_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             "Images",
@@ -271,6 +280,35 @@ class MainWindow:
     def _set_status(self, msg):
         self.statusbar.configure(text=msg)
 
+    # ---------------------------------------------------------
+    def _set_window_title(self, title, style_name="by_section"):
+        """
+        Actualiza el título de la ventana en el header
+        
+        Args:
+            title: Texto del título
+            style_name: Estilo a aplicar. Opciones:
+                - "default": Blanco, Arial
+                - "primary": Azul brillante
+                - "purple": Púrpura elegante
+                - "orange": Naranja vibrante
+                - "by_section": Color según la sección (recomendado)
+                - "segoe_ui": Fuente Segoe UI
+                - "italic": Texto en cursiva
+                - "large": Fuente más grande (40px)
+                - "small": Fuente más pequeña (28px)
+        """
+        if hasattr(self, "window_title_label"):
+            self.window_title_label.configure(text=title)
+            
+            # Aplicar estilo si está disponible
+            try:
+                from src.utils.title_styles import apply_title_style
+                apply_title_style(self.window_title_label, style_name, title)
+            except ImportError:
+                # Si no está disponible, usar estilo por defecto
+                pass
+
 
     # ---------------------------------------------------------
     def _clear_frame(self):
@@ -305,6 +343,7 @@ class MainWindow:
 
         self.current_frame.pack(fill="both", expand=True)
         self._set_status("Dashboard")
+        self._set_window_title("Dashboard")
 
 
     # ---------------------------------------------------------
@@ -316,6 +355,7 @@ class MainWindow:
         self.current_frame.pack(fill="both", expand=True)
 
         self._set_status(label)
+        self._set_window_title(label)
 
 
     # ---------------------------------------------------------
