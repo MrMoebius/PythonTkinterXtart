@@ -266,6 +266,7 @@ class FacturasWindow(BaseCRUDWindow):
             {"name": "fecha", "label": "Fecha (YYYY-MM-DD)", "type": "date", "required": True},
             {"name": "total", "label": "Total (€)", "type": "number", "required": True},
             {"name": "estado", "label": "Estado", "type": "select", "required": True},
+            {"name": "notas", "label": "Notas", "type": "text", "required": False},
         ]
 
     # =====================================================================
@@ -347,14 +348,14 @@ class FacturasWindow(BaseCRUDWindow):
         
         form = tk.Toplevel(self)
         form.title("Nueva Factura" if item is None else "Editar Factura")
-        form.geometry("620x340")
+        form.geometry("620x380")
         form.transient(self.winfo_toplevel())
         form.grab_set()
 
         form.update_idletasks()
         x = (form.winfo_screenwidth() // 2) - 310
-        y = (form.winfo_screenheight() // 2) - 180
-        form.geometry(f"620x340+{x}+{y}")
+        y = (form.winfo_screenheight() // 2) - 200
+        form.geometry(f"620x380+{x}+{y}")
 
         main = ttk.Frame(form, padding=15)
         main.pack(fill=tk.BOTH, expand=True)
@@ -522,7 +523,7 @@ class FacturasWindow(BaseCRUDWindow):
                             pass
                     entry.set_value(str(value))
 
-            # ---------------- TEXT GENÉRICO ----------------
+            # ---------------- TEXT GENÉRICO ---------------- 
             else:
                 entry = ValidatedEntry(
                     main, validation_type="text",
@@ -532,8 +533,10 @@ class FacturasWindow(BaseCRUDWindow):
                 entry.grid(row=i, column=1, padx=5, pady=4, sticky="ew")
                 fields[f["name"]] = entry
 
-                if item and item.get(f["name"]):
-                    entry.set_value(item[f["name"]])
+                if item and f["name"] in item:
+                    value = item.get(f["name"])
+                    if value is not None:
+                        entry.set_value(str(value))
 
         main.columnconfigure(1, weight=1)
 
@@ -569,15 +572,23 @@ class FacturasWindow(BaseCRUDWindow):
                 else:
                     value = widget.get()
                     if value != "":
-                        if name in ("cliente_id", "empleado_id"):
-                            data[name] = int(value.split(" - ")[0])
+                        if name == "cliente_id":
+                            # El backend espera "id_cliente" en lugar de "cliente_id"
+                            data["id_cliente"] = int(value.split(" - ")[0])
+                        elif name == "empleado_id":
+                            # El backend espera "id_empleado" en lugar de "empleado_id"
+                            data["id_empleado"] = int(value.split(" - ")[0])
                         else:
                             data[name] = value
 
             # Guardar
+            # No enviar num_factura al crear nueva factura - se generará automáticamente
             if item:
                 res = self.api.update("facturas", item["id"], data)
             else:
+                # Al crear nueva factura, no enviar num_factura (se generará automáticamente)
+                if "num_factura" in data:
+                    del data["num_factura"]
                 res = self.api.create("facturas", data)
 
             if res.get("success"):

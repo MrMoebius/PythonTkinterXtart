@@ -475,22 +475,36 @@ class PagosWindow(BaseCRUDWindow):
     # BOTONES DE EXPORTACIÓN
     # =====================================================================
     def _create_widgets(self):
-        """Sobrescribe _create_widgets para agregar botones de exportación"""
-        super()._create_widgets()
+        """Sobrescribe _create_widgets para ocultar botones CRUD y agregar botones de exportación"""
+        # Crear toolbar sin los botones CRUD (Nuevo, Editar, Eliminar)
+        toolbar = ttk.Frame(self)
+        toolbar.pack(fill=tk.X, pady=5)
         
-        # Agregar botones de exportación al toolbar
-        for widget in self.winfo_children():
-            if isinstance(widget, ttk.Frame):
-                has_buttons = False
-                for child in widget.winfo_children():
-                    if isinstance(child, ttk.Button):
-                        has_buttons = True
-                        break
-                if has_buttons:
-                    ttk.Separator(widget, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
-                    ttk.Button(widget, text="Exportar PDF", command=self._export_pdf).pack(side=tk.LEFT, padx=2)
-                    ttk.Button(widget, text="Exportar PNG", command=self._export_png).pack(side=tk.LEFT, padx=2)
-                    break
+        # Solo mostrar botón Actualizar (sin Nuevo, Editar, Eliminar)
+        ttk.Button(toolbar, text="Actualizar", command=self._load_data).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
+        
+        # Agregar botones de exportación
+        if not self.client_mode:
+            ttk.Button(toolbar, text="Exportar PDF", command=self._export_pdf).pack(side=tk.LEFT, padx=2)
+            ttk.Button(toolbar, text="Exportar PNG", command=self._export_png).pack(side=tk.LEFT, padx=2)
+        
+        # Filtros (solo empleados/admin)
+        if self.filters and not self.client_mode:
+            from src.widgets.filter_panel import FilterPanel
+            self.filter_panel = FilterPanel(self, self.filters, self._on_filter)
+            self.filter_panel.pack(fill=tk.X, pady=5)
+        
+        # Tabla (sin doble click para editar)
+        from src.widgets.data_table import DataTable
+        self.table = DataTable(
+            self,
+            self.columns,
+            on_select=self._on_select,
+            on_double_click=None  # No permitir edición con doble click
+        )
+        self.table.pack(fill=tk.BOTH, expand=True, pady=5)
     
     def _add_export_buttons_delayed(self):
         """Método placeholder para compatibilidad"""

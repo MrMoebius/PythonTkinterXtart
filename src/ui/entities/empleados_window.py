@@ -61,16 +61,38 @@ class EmpleadosWindow(BaseCRUDWindow):
     # =====================================================================
     def _load_roles(self):
         """Carga los roles de empleado desde el backend"""
+        logger.info("Cargando roles desde el backend...")
         result = self.api.get_roles_empleado()
+        logger.info(f"Resultado de get_roles_empleado: success={result.get('success')}, data type={type(result.get('data'))}")
+        
         if result.get("success"):
-            self.roles = result.get("data", [])
+            data = result.get("data", [])
+            # Asegurar que data es una lista
+            if data is None:
+                logger.warning("Data es None, convirtiendo a lista vacía")
+                self.roles = []
+            elif not isinstance(data, list):
+                logger.warning(f"Data no es una lista (es {type(data)}), convirtiendo a lista")
+                self.roles = [data] if data else []
+            else:
+                self.roles = data
+            
+            logger.info(f"Roles cargados: {len(self.roles)} roles")
+            if self.roles:
+                logger.info(f"Estructura del primer rol: {self.roles[0]}")
+                # Verificar que tienen los campos esperados
+                for i, rol in enumerate(self.roles):
+                    if isinstance(rol, dict):
+                        logger.info(f"Rol {i}: id_rol={rol.get('id_rol')}, nombre_rol={rol.get('nombre_rol')}")
         else:
+            error_msg = result.get("error", "Error desconocido")
+            logger.error(f"Error al cargar roles: {error_msg}")
             self.roles = []
         
         # Actualizar filtro de rol si existe
         if hasattr(self, "filter_panel") and self.filter_panel:
-            self.filter_panel.filter_widgets["rol_nombre"]["values"] = \
-                ["(Sin filtro)"] + [r.get("nombre_rol", r.get("nombre", "")) for r in self.roles]
+            role_names = [r.get("nombre_rol", r.get("nombre", "")) for r in self.roles if isinstance(r, dict)]
+            self.filter_panel.filter_widgets["rol_nombre"]["values"] = ["(Sin filtro)"] + role_names
             self.filter_panel.filter_widgets["rol_nombre"].set("(Sin filtro)")
 
     def _apply_role_names(self):
@@ -137,6 +159,31 @@ class EmpleadosWindow(BaseCRUDWindow):
             messagebox.showerror("Error", f"Error al cargar datos del formulario: tipo inesperado {type(item)}")
             return
 
+        # Asegurar que los roles estén cargados antes de abrir el formulario
+        # Siempre recargar roles antes de abrir el formulario para asegurar datos frescos
+        logger.info("Recargando roles antes de abrir formulario...")
+        self._load_roles()
+        
+        # Verificar que los roles se cargaron correctamente
+        if not self.roles:
+            logger.warning("No se pudieron cargar los roles. Verificando respuesta del API...")
+            result = self.api.get_roles_empleado()
+            logger.error(f"Resultado directo de get_roles_empleado: {result}")
+            logger.error(f"Success: {result.get('success')}")
+            logger.error(f"Tipo de data: {type(result.get('data'))}, valor: {result.get('data')}")
+            
+            # Intentar procesar manualmente si hay data
+            if result.get("success") and result.get("data"):
+                data = result.get("data")
+                if isinstance(data, list):
+                    logger.info(f"Data es una lista con {len(data)} elementos")
+                    self.roles = data
+                elif isinstance(data, dict):
+                    logger.info(f"Data es un diccionario, convirtiendo a lista")
+                    self.roles = [data]
+                else:
+                    logger.error(f"Data tiene tipo inesperado: {type(data)}")
+
         form = tk.Toplevel(self)
         form.title("Nuevo Empleado" if item is None else "Editar Empleado")
         form.geometry("600x300")
@@ -168,11 +215,49 @@ class EmpleadosWindow(BaseCRUDWindow):
 
             # SELECT = roles
             if field_type == "select":
-                # Obtener nombres de roles
-                options = [r.get("nombre_rol", r.get("nombre", "")) for r in self.roles]
+                # Obtener nombres de roles, filtrando valores vacíos
+                options = []
+                logger.info(f"Procesando {len(self.roles)} roles para el desplegable...")
+                
+                for idx, r in enumerate(self.roles):
+                    if not isinstance(r, dict):
+                        logger.warning(f"Rol {idx} no es un diccionario: {type(r)} = {r}")
+                        continue
+                    
+                    # Intentar obtener el nombre del rol de diferentes formas
+                    nombre = r.get("nombre_rol") or r.get("nombre") or ""
+                    
+                    # Si aún no hay nombre, intentar otras variantes
+                    if not nombre:
+                        # Algunos backends pueden devolver el nombre en otros campos
+                        nombre = r.get("nombreRol") or r.get("nombreRol") or ""
+                    
+                    if nombre and nombre.strip():
+                        options.append(nombre.strip())
+                        logger.debug(f"Rol agregado: {nombre.strip()}")
+                    else:
+                        logger.warning(f"Rol {idx} no tiene nombre válido. Estructura: {r}")
+                
+                logger.info(f"Opciones de roles para el desplegable: {options} (total: {len(options)})")
+                logger.info(f"Roles disponibles en self.roles: {len(self.roles)} roles")
+                if self.roles:
+                    logger.info(f"Estructura del primer rol: {self.roles[0]}")
+                
+                # Crear el combobox con las opciones
                 combo = ttk.Combobox(main, values=options, state="readonly", width=30)
                 combo.grid(row=i, column=1, pady=6, padx=5, sticky="ew")
                 fields[field["name"]] = combo
+                
+                # Si hay opciones, seleccionar la primera por defecto
+                if options:
+                    combo.current(0)
+                    logger.info(f"Desplegable de roles creado con {len(options)} opciones. Primera opción seleccionada: {options[0]}")
+                else:
+                    logger.error("El desplegable de roles está vacío. No hay opciones disponibles.")
+                    logger.error(f"self.roles contiene: {self.roles}")
+                    # Mostrar un mensaje visual en el combobox
+                    combo["values"] = ["(No hay roles disponibles)"]
+                    combo.set("(No hay roles disponibles)")
 
                 # Cargar valor si se está editando
                 if item and isinstance(item, dict):

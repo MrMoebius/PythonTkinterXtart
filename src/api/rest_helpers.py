@@ -230,6 +230,10 @@ class RESTHelpers:
         Returns:
             Dict con 'success' y 'data' (lista de roles) o 'error'
         """
-        # El endpoint es /roles según la documentación del backend
-        return self.api._request("GET", "/roles")
+        # El endpoint es /roles_empleado según endpoints.py
+        from src.api.endpoints import Endpoints
+        logger.info(f"Llamando a get_roles_empleado con endpoint: {Endpoints.ROLES_EMPLEADO}")
+        result = self.api._request("GET", Endpoints.ROLES_EMPLEADO)
+        logger.info(f"Respuesta de get_roles_empleado: {result}")
+        return result
 

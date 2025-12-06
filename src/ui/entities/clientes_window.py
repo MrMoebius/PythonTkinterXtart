@@ -235,16 +235,57 @@ class ClientesWindow(BaseCRUDWindow):
             exclude_fields=["fecha_alta"]  # No permitir editar fecha de alta
         )
 
+        # =====================================================================
+    # CARGA DE DATOS (SOBRESCRIBIR PARA USAR get_clientes)
+    # =====================================================================
+    def _load_data(self):
+        """Carga los datos de clientes usando el método específico get_clientes"""
+        # Usar el método específico get_clientes en lugar de get_all genérico
+        result = self.api.get_clientes()
+        
+        if not result.get("success"):
+            from tkinter import messagebox
+            messagebox.showerror("Error", f"Error al cargar datos: {result.get('error')}")
+            return
+        
+        data = result.get("data", [])
+        
+        # Asegurar que data es una lista
+        if data is None:
+            data = []
+        elif not isinstance(data, list):
+            data = [data] if data else []
+        
+        # Normalizar IDs: el backend Java usa id_cliente, pero la tabla espera "id"
+        for row in data:
+            if isinstance(row, dict):
+                if "id_cliente" in row and "id" not in row:
+                    row["id"] = row["id_cliente"]
+                # Mantener id_cliente también para compatibilidad
+                if "id_cliente" in row and "cliente_id" not in row:
+                    row["cliente_id"] = row["id_cliente"]
+        
+        # En modo cliente, filtrar solo su propio registro
+        if self.client_mode:
+            uid = getattr(self.api, "user_id", None)
+            data = [row for row in data if row.get("id") == uid or row.get("id_cliente") == uid]
+        
+        self.data = data
+        
+        # Actualizar la tabla
+        self.table.set_data(self.data)
+    
     # =====================================================================
     # FORMULARIO: CREAR / EDITAR (MODO EMPLEADO/ADMIN)
     # =====================================================================
     def _on_select(self, item):
-        pass    
+        pass
     
     def _show_form(self, item: Optional[Dict]):
         """Ventana de creación o edición de clientes."""
         def on_success(cliente_guardado):
             """Callback cuando el cliente se guarda exitosamente."""
+            # Recargar datos después de crear/editar
             self._load_data()
         
         abrir_formulario_cliente(
