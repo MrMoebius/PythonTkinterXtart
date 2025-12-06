@@ -531,34 +531,36 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TD
-    Start([Usuario en ventana CRUD]) --> ShowFilters[Mostrar FilterPanel]
+
+    Start[Usuario en ventana CRUD] --> ShowFilters[Mostrar FilterPanel]
     ShowFilters --> Input[Usuario ingresa criterios]
-    Input --> Apply{Presiona Aplicar Filtros?}
-    
+    Input --> Apply{Aplicar Filtros?}
+
     Apply -->|No| Clear{Presiona Limpiar?}
-    Clear -->|Sí| ClearFields[Limpiar campos]
+    Clear -->|Si| ClearFields[Limpiar campos]
     ClearFields --> LoadAll[Cargar todos los datos]
     Clear -->|No| Input
-    
-    Apply -->|Sí| BuildParams[Construir parámetros de consulta]
-    BuildParams --> Request[GET /{entidad}?param1=value1&param2=value2]
-    Request --> Backend{Backend responde}
-    
-    Backend -->|Éxito| ProcessData[Procesar datos recibidos]
-    Backend -->|Error| ShowError[Mostrar mensaje de error]
+
+    Apply -->|Si| BuildParams[Construir parametros de consulta]
+    BuildParams --> Request[Enviar peticion GET filtrada]
+    Request --> Backend{Respuesta del Backend}
+
+    Backend -->|Exito| ProcessData[Procesar datos]
+    Backend -->|Error| ShowError[Mostrar error]
     ShowError --> Input
-    
+
     ProcessData --> Normalize[Normalizar IDs y campos]
-    Normalize --> FilterClient{¿Modo Cliente?}
-    
-    FilterClient -->|Sí| FilterByUser[Filtrar por user_id]
+    Normalize --> FilterClient{Modo Cliente?}
+
+    FilterClient -->|Si| FilterByUser[Filtrar por user_id]
     FilterClient -->|No| UpdateTable
-    
+
     FilterByUser --> UpdateTable[Actualizar DataTable]
     LoadAll --> UpdateTable
     UpdateTable --> Display[Mostrar resultados]
     Display --> Input
-    
+
+    %% Estilos
     style Start fill:#e1f5ff
     style Request fill:#fff4e1
     style Backend fill:#ffe1f5
