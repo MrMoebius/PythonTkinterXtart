@@ -33,7 +33,7 @@ Cliente de escritorio en Python con CustomTkinter y ttkbootstrap para gestionar 
 ## 🔧 Requisitos
 
 - Python 3.8 o superior
-- Backend Java REST API ejecutándose en `http://localhost:8080/crudxtart_war`
+- Backend Java REST API ejecutándose en `http://localhost:8080/crudxtart`
 - Dependencias Python (ver `requirements.txt`)
   - `customtkinter` - Interfaz gráfica moderna
   - `ttkbootstrap` - Temas y estilos adicionales
@@ -54,7 +54,7 @@ pip install -r requirements.txt
    ```bash
    python main.py
    ```
-   - El backend debe estar disponible en `http://localhost:8080/crudxtart_war`
+   - El backend debe estar disponible en `http://localhost:8080/crudxtart`
    - Verificar que los endpoints REST están accesibles
    - La URL puede configurarse mediante variable de entorno `API_BASE_URL`
 
@@ -470,10 +470,10 @@ Los informes disponibles en el sistema:
 
 ### Error: "No se pudo conectar con el servidor"
 
-- Verificar que el backend Java está ejecutándose en `http://localhost:8080/crudxtart_war`
+- Verificar que el backend Java está ejecutándose en `http://localhost:8080/crudxtart`
 - Verificar que la URL en `src/utils/settings.py` es correcta
 - Verificar la conexión de red
-- Configurar la URL mediante variable de entorno: `export API_BASE_URL="http://localhost:8080/crudxtart_war"`
+- Configurar la URL mediante variable de entorno: `export API_BASE_URL="http://localhost:8080/crudxtart"`
 
 ### Error: "Error de Autenticación"
 

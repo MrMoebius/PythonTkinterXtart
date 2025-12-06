@@ -7,8 +7,8 @@ class Endpoints:
     """Endpoints de la API REST del backend"""
     
     # Base URL - se puede configurar desde settings
-    # Backend Java: crudxtart_war
-    BASE_URL = "http://localhost:8080/crudxtart_war"
+    # Backend Java: crudxtart
+    BASE_URL = "http://localhost:8080/crudxtart"
     
     # Autenticación
     AUTH_LOGIN = "/login"

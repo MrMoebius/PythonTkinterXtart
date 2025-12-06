@@ -4,7 +4,7 @@
 
 El cliente está configurado para conectarse al backend Java en:
 ```
-http://localhost:8080/crudxtart_war
+http://localhost:8080/crudxtart
 ```
 
 ### Cambiar la URL del Backend
@@ -13,7 +13,7 @@ Para cambiar la URL del backend, puede hacerlo de dos formas:
 
 **Opción 1: Variable de entorno (recomendado)**
 ```bash
-export API_BASE_URL="http://localhost:8080/crudxtart_war"
+export API_BASE_URL="http://localhost:8080/crudxtart"
 python main.py
 ```
 
@@ -22,7 +22,7 @@ python main.py
 Edite el archivo `src/utils/settings.py`:
 
 ```python
-API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8080/crudxtart_war")
+API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8080/crudxtart")
 ```
 
 Cambie el valor por defecto por la dirección de su servidor.

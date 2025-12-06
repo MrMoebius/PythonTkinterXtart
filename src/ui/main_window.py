@@ -434,6 +434,9 @@ class MainWindow:
 
         self.api.logout()
         self.destroy_main_content()
+        
+        # Ocultar la ventana principal para evitar que se vea el fondo blanco residual
+        self.root.withdraw()
 
         from src.ui.login_window import LoginWindow
         LoginWindow(self.root, self.api).show()

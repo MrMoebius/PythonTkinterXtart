@@ -10,9 +10,9 @@ class Settings:
     """Configuración centralizada de la aplicación"""
     
     # API Configuration
-    # Backend Java: crudxtart_war
-    # Puede configurarse con variable de entorno: export API_BASE_URL="http://localhost:8080/crudxtart_war"
-    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8080/crudxtart_war")
+    # Backend Java: crudxtart
+    # Puede configurarse con variable de entorno: export API_BASE_URL="http://localhost:8080/crudxtart"
+    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8080/crudxtart")
     API_TIMEOUT: int = int(os.getenv("API_TIMEOUT", "30"))
     
     # Application
