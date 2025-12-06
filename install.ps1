@@ -98,6 +98,7 @@ if ($?) {
     Write-Host "  - Pillow (procesamiento de imágenes)" -ForegroundColor White
     Write-Host "  - customtkinter (interfaz gráfica)" -ForegroundColor White
     Write-Host "  - ttkbootstrap (temas adicionales)" -ForegroundColor White
+    Write-Host "  - tkinterweb (visor HTML)" -ForegroundColor White
     Write-Host ""
     Write-Host "Para ejecutar la aplicación:" -ForegroundColor Cyan
     Write-Host "  python main.py" -ForegroundColor Yellow

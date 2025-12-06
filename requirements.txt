@@ -3,4 +3,5 @@ matplotlib>=3.7.0
 Pillow>=10.0.0
 customtkinter>=5.2.0
 ttkbootstrap>=1.10.0
+tkinterweb>=3.21.0
 

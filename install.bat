@@ -79,6 +79,7 @@ if %errorlevel% equ 0 (
     echo   - Pillow (procesamiento de imagenes)
     echo   - customtkinter (interfaz grafica)
     echo   - ttkbootstrap (temas adicionales)
+    echo   - tkinterweb (visor HTML)
     echo.
     echo Para ejecutar la aplicacion:
     echo   python main.py

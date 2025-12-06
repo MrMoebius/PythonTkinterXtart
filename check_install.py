@@ -61,7 +61,7 @@ def main():
     print()
     
     # Verificar Python
-    print("[1/6] Verificando Python...")
+    print("[1/7] Verificando Python...")
     if not check_python_version():
         sys.exit(1)
     print()
@@ -73,11 +73,12 @@ def main():
         ("PIL", "Pillow", "10.0.0"),
         ("customtkinter", "customtkinter", "5.2.0"),
         ("ttkbootstrap", "ttkbootstrap", "1.10.0"),
+        ("tkinterweb", "tkinterweb", "3.21.0"),
     ]
     
     all_ok = True
     for i, (module, package, version) in enumerate(dependencies, start=2):
-        print(f"[{i}/6] Verificando {package}...")
+        print(f"[{i}/7] Verificando {package}...")
         if not check_dependency(module, package, version):
             all_ok = False
         print()
